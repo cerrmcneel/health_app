@@ -1,10 +1,11 @@
 """Daily totals, history, targets, and a system health probe."""
 from datetime import date, timedelta
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
 from app import config
 from app.db import get_conn
+from app.deps import get_profile, get_profile_id
 from app.models import Settings
 from app.services import vision
 
@@ -14,49 +15,64 @@ EMPTY = {"calories": 0.0, "protein_g": 0.0, "carbs_g": 0.0, "fat_g": 0.0, "meal_
 
 
 @router.get("/stats/daily")
-def daily(day: date | None = None):
-    """Totals plus target progress for one day."""
+def daily(request: Request, day: date | None = None):
+    """Totals plus target progress for one day for the active profile."""
     target_day = (day or config.now().date()).isoformat()
     with get_conn() as conn:
+        profile_id = get_profile_id(request, conn)
+        prof = get_profile(conn, profile_id)
         row = conn.execute(
-            "SELECT * FROM v_daily_totals WHERE day = ?", (target_day,)
+            "SELECT * FROM v_daily_totals WHERE profile_id = ? AND day = ?", (profile_id, target_day)
         ).fetchone()
-        settings = dict(conn.execute("SELECT * FROM settings WHERE id = 1").fetchone())
 
-    totals = {**EMPTY, **({k: v for k, v in dict(row).items() if k != "day"} if row else {})}
-    settings.pop("id", None)
+    targets = {
+        "calorie_target": prof.get("calorie_target", 2200.0),
+        "protein_target": prof.get("protein_target", 160.0),
+        "carbs_target": prof.get("carbs_target", 220.0),
+        "fat_target": prof.get("fat_target", 70.0),
+    }
+
+    totals = {**EMPTY, **({k: v for k, v in dict(row).items() if k not in ("day", "profile_id")} if row else {})}
     return {
         "day": target_day,
+        "profile": {
+            "id": prof.get("id"),
+            "name": prof.get("name"),
+            "avatar_color": prof.get("avatar_color"),
+        },
         "totals": totals,
-        "targets": settings,
+        "targets": targets,
         "remaining": {
-            "calories": round(settings["calorie_target"] - totals["calories"], 1),
-            "protein_g": round(settings["protein_target"] - totals["protein_g"], 1),
-            "carbs_g": round(settings["carbs_target"] - totals["carbs_g"], 1),
-            "fat_g": round(settings["fat_target"] - totals["fat_g"], 1),
+            "calories": round(targets["calorie_target"] - totals["calories"], 1),
+            "protein_g": round(targets["protein_target"] - totals["protein_g"], 1),
+            "carbs_g": round(targets["carbs_target"] - totals["carbs_g"], 1),
+            "fat_g": round(targets["fat_target"] - totals["fat_g"], 1),
         },
     }
 
 
 @router.get("/stats/range")
-def range_stats(days: int = Query(default=14, ge=1, le=365)):
-    """A dense day-by-day series ending today.
-
-    Days with no meals are emitted as zeros rather than omitted, so the chart
-    shows the gaps instead of silently compressing them.
-    """
+def range_stats(request: Request, days: int = Query(default=14, ge=1, le=365)):
+    """A dense day-by-day series ending today for the active profile."""
     end = config.now().date()
     start = end - timedelta(days=days - 1)
     with get_conn() as conn:
+        profile_id = get_profile_id(request, conn)
+        prof = get_profile(conn, profile_id)
         rows = {
             r["day"]: dict(r)
             for r in conn.execute(
-                "SELECT * FROM v_daily_totals WHERE day BETWEEN ? AND ?",
-                (start.isoformat(), end.isoformat()),
+                "SELECT * FROM v_daily_totals WHERE profile_id = ? AND day BETWEEN ? AND ?",
+                (profile_id, start.isoformat(), end.isoformat()),
             )
         }
-        settings = dict(conn.execute("SELECT * FROM settings WHERE id = 1").fetchone())
-    settings.pop("id", None)
+
+    targets = {
+        "calorie_target": prof.get("calorie_target", 2200.0),
+        "protein_target": prof.get("protein_target", 160.0),
+        "carbs_target": prof.get("carbs_target", 220.0),
+        "fat_target": prof.get("fat_target", 70.0),
+    }
 
     series = []
     for offset in range(days):
@@ -64,14 +80,14 @@ def range_stats(days: int = Query(default=14, ge=1, le=365)):
         row = rows.get(d)
         entry = {**EMPTY, "day": d}
         if row:
-            entry.update({k: v or 0 for k, v in row.items() if k != "day"})
+            entry.update({k: v or 0 for k, v in row.items() if k not in ("day", "profile_id")})
         series.append(entry)
 
     logged = [s["calories"] for s in series if s["meal_count"]]
     return {
         "start": start.isoformat(),
         "end": end.isoformat(),
-        "targets": settings,
+        "targets": targets,
         "series": series,
         "average_calories": round(sum(logged) / len(logged), 1) if logged else 0.0,
         "days_logged": len(logged),
@@ -79,16 +95,28 @@ def range_stats(days: int = Query(default=14, ge=1, le=365)):
 
 
 @router.get("/settings")
-def get_settings():
+def get_settings(request: Request):
     with get_conn() as conn:
-        row = dict(conn.execute("SELECT * FROM settings WHERE id = 1").fetchone())
-    row.pop("id", None)
-    return row
+        profile_id = get_profile_id(request, conn)
+        prof = get_profile(conn, profile_id)
+    return {
+        "calorie_target": prof.get("calorie_target", 2200.0),
+        "protein_target": prof.get("protein_target", 160.0),
+        "carbs_target": prof.get("carbs_target", 220.0),
+        "fat_target": prof.get("fat_target", 70.0),
+    }
 
 
 @router.put("/settings")
-def put_settings(settings: Settings):
+def put_settings(request: Request, settings: Settings):
     with get_conn() as conn:
+        profile_id = get_profile_id(request, conn)
+        conn.execute(
+            """UPDATE profiles SET calorie_target = ?, protein_target = ?,
+                                  carbs_target = ?, fat_target = ? WHERE id = ?""",
+            (settings.calorie_target, settings.protein_target,
+             settings.carbs_target, settings.fat_target, profile_id),
+        )
         conn.execute(
             """UPDATE settings SET calorie_target = ?, protein_target = ?,
                                    carbs_target = ?, fat_target = ? WHERE id = 1""",

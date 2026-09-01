@@ -6,11 +6,12 @@ committed. The photo is parked in _pending/ and claimed by token on confirm.
 """
 from datetime import date, datetime
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 
 from app import config
 from app.db import get_conn
-from app.models import MealIn, MealUpdate
+from app.deps import get_profile_id
+from app.models import MealIn, MealItemIn, MealUpdate
 from app.services import images, vision
 
 router = APIRouter(prefix="/api", tags=["meals"])
@@ -42,7 +43,7 @@ async def analyze(image: UploadFile = File(...), model: str | None = Form(defaul
 
 
 @router.post("/meals", status_code=201)
-def create_meal(meal: MealIn):
+def create_meal(request: Request, meal: MealIn):
     """Commit a reviewed meal, claiming its pending photo if one was supplied."""
     when = config.now()
     day = (meal.day or when.date()).isoformat()
@@ -52,11 +53,12 @@ def create_meal(meal: MealIn):
         image_path = images.commit_pending(meal.pending_image, when)
 
     with get_conn() as conn:
+        profile_id = get_profile_id(request, conn)
         cur = conn.execute(
-            """INSERT INTO meals (day, logged_at, name, meal_type, source,
+            """INSERT INTO meals (profile_id, day, logged_at, name, meal_type, source,
                                   image_path, model, notes, raw_json)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (day, when.isoformat(), meal.name, meal.meal_type, meal.source,
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (profile_id, day, when.isoformat(), meal.name, meal.meal_type, meal.source,
              image_path, meal.model, meal.notes, meal.raw_json),
         )
         meal_id = cur.lastrowid
@@ -65,13 +67,14 @@ def create_meal(meal: MealIn):
 
 
 @router.get("/meals")
-def list_meals(day: date | None = None, limit: int = 100):
-    """Meals for a given day (defaults to today), newest first."""
+def list_meals(request: Request, day: date | None = None, limit: int = 100):
+    """Meals for a given day (defaults to today) for the active profile, newest first."""
     target = (day or config.now().date()).isoformat()
     with get_conn() as conn:
+        profile_id = get_profile_id(request, conn)
         rows = conn.execute(
-            "SELECT id FROM meals WHERE day = ? ORDER BY logged_at DESC LIMIT ?",
-            (target, max(1, min(limit, 500))),
+            "SELECT id FROM meals WHERE profile_id = ? AND day = ? ORDER BY logged_at DESC LIMIT ?",
+            (profile_id, target, max(1, min(limit, 500))),
         ).fetchall()
         return {"day": target, "meals": [_fetch_meal(conn, r["id"]) for r in rows]}
 
@@ -83,6 +86,30 @@ def get_meal(meal_id: int):
         if meal is None:
             raise HTTPException(status_code=404, detail="Meal not found.")
         return meal
+
+
+@router.post("/meals/{meal_id}/duplicate", status_code=201)
+def duplicate_meal(request: Request, meal_id: int):
+    """Log this meal again today -- duplicates items and macros for fast meal reuse."""
+    when = config.now()
+    today = when.date().isoformat()
+    with get_conn() as conn:
+        profile_id = get_profile_id(request, conn)
+        src = _fetch_meal(conn, meal_id)
+        if src is None:
+            raise HTTPException(status_code=404, detail="Source meal not found.")
+
+        cur = conn.execute(
+            """INSERT INTO meals (profile_id, day, logged_at, name, meal_type, source,
+                                  image_path, model, notes, raw_json)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (profile_id, today, when.isoformat(), src["name"], src["meal_type"], "manual",
+             src["image_path"], src["model"], src["notes"], None),
+        )
+        new_id = cur.lastrowid
+        item_objs = [MealItemIn(**it) for it in src["items"]]
+        _insert_items(conn, new_id, item_objs)
+        return _fetch_meal(conn, new_id)
 
 
 @router.patch("/meals/{meal_id}")

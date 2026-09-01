@@ -1,7 +1,22 @@
 // Shared helpers: fetch wrapper, formatting, toasts, nav highlighting.
 
+export function getActiveProfileId() {
+  return localStorage.getItem('active_profile_id') || null;
+}
+
+export function setActiveProfileId(id) {
+  if (id) localStorage.setItem('active_profile_id', String(id));
+  else localStorage.removeItem('active_profile_id');
+}
+
 export async function api(path, options = {}) {
-  const res = await fetch(path, options);
+  const headers = { ...(options.headers || {}) };
+  const pid = getActiveProfileId();
+  if (pid && !headers['X-Profile-ID']) {
+    headers['X-Profile-ID'] = String(pid);
+  }
+
+  const res = await fetch(path, { ...options, headers });
   if (res.status === 204) return null;
   let body = null;
   try { body = await res.json(); } catch { /* empty or non-JSON body */ }

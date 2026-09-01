@@ -51,3 +51,28 @@ class Settings(BaseModel):
     protein_target: float = Field(default=160, ge=0, le=2000)
     carbs_target: float = Field(default=220, ge=0, le=2000)
     fat_target: float = Field(default=70, ge=0, le=2000)
+
+
+class ProfileIn(BaseModel):
+    name: str = Field(min_length=1, max_length=60)
+    calorie_target: float = Field(default=2200, ge=0, le=20000)
+    protein_target: float = Field(default=160, ge=0, le=2000)
+    carbs_target: float = Field(default=220, ge=0, le=2000)
+    fat_target: float = Field(default=70, ge=0, le=2000)
+    avatar_color: str = Field(default="#3b82f6", max_length=20)
+
+
+class ProfileUpdate(BaseModel):
+    name: str | None = Field(default=None, max_length=60)
+    calorie_target: float | None = Field(default=None, ge=0, le=20000)
+    protein_target: float | None = Field(default=None, ge=0, le=2000)
+    carbs_target: float | None = Field(default=None, ge=0, le=2000)
+    fat_target: float | None = Field(default=None, ge=0, le=2000)
+    avatar_color: str | None = Field(default=None, max_length=20)
+
+
+class WeightIn(BaseModel):
+    weight_kg: float = Field(gt=0, le=500)
+    day: date | None = None
+    notes: str = Field(default="", max_length=300)
+

@@ -14,7 +14,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app import config
 from app.db import init_db
-from app.routers import meals, photos, stats
+from app.routers import meals, photos, profiles, stats, weights
 from app.services import images
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -38,6 +38,8 @@ app = FastAPI(title="Fitness Tracker", version="1.0.0", lifespan=lifespan)
 app.include_router(meals.router)
 app.include_router(photos.router)
 app.include_router(stats.router)
+app.include_router(profiles.router)
+app.include_router(weights.router)
 
 
 @app.exception_handler(Exception)
