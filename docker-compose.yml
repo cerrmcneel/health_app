@@ -6,17 +6,25 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      # Host path holding the SQLite DB and every photo. Back this up.
       - ./storage/fitness_tracker:/storage/fitness_tracker
     environment:
-      # The container's own localhost is NOT the host. host.docker.internal
-      # resolves to the host via the extra_hosts mapping below.
-      OLLAMA_URL: "http://host.docker.internal:11434"
-      VISION_MODEL: "${VISION_MODEL:-qwen2.5-vl:7b}"
+      OLLAMA_URL: "http://gpu-worker:11434"
+      VISION_MODEL: "${VISION_MODEL:-gemma4:12b}"
       OLLAMA_TIMEOUT: "180"
-      TZ: "${TZ:-Europe/Berlin}"
+      TZ: "${TZ:-Europe/Madrid}"
       STORAGE_DIR: "/storage/fitness_tracker"
       DB_PATH: "/storage/fitness_tracker/tracker.db"
     extra_hosts:
-      # Required on Linux; harmless on Docker Desktop, which defines it already.
-      - "host.docker.internal:host-gateway"
+      - "gpu-worker:100.102.124.29"
+
+  proxy:
+    image: nginx:alpine
+    container_name: fitness-tracker-proxy
+    restart: unless-stopped
+    ports:
+      - "8443:8443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certs:/certs:ro
+    depends_on:
+      - tracker
