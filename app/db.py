@@ -82,7 +82,9 @@ CREATE TABLE IF NOT EXISTS settings (
     fat_target     REAL NOT NULL DEFAULT 70
 );
 INSERT OR IGNORE INTO settings (id) VALUES (1);
+"""
 
+VIEW_SCHEMA = """
 -- Daily totals are derived, never stored, so edits to a meal can never drift
 -- out of sync with the day's headline number.
 DROP VIEW IF EXISTS v_daily_totals;
@@ -148,3 +150,5 @@ def init_db() -> None:
     with get_conn() as conn:
         conn.executescript(SCHEMA)
         _migrate(conn)
+        conn.executescript(VIEW_SCHEMA)
+
