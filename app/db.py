@@ -33,7 +33,6 @@ CREATE TABLE IF NOT EXISTS meals (
     raw_json    TEXT                           -- unedited model output, for auditing
 );
 CREATE INDEX IF NOT EXISTS idx_meals_day ON meals(day);
-CREATE INDEX IF NOT EXISTS idx_meals_profile_day ON meals(profile_id, day);
 
 CREATE TABLE IF NOT EXISTS meal_items (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -61,7 +60,6 @@ CREATE TABLE IF NOT EXISTS progress_photos (
     bytes       INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_photos_pose_day ON progress_photos(pose, day DESC);
-CREATE INDEX IF NOT EXISTS idx_photos_profile_pose_day ON progress_photos(profile_id, pose, day DESC);
 
 CREATE TABLE IF NOT EXISTS weights (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -84,7 +82,10 @@ CREATE TABLE IF NOT EXISTS settings (
 INSERT OR IGNORE INTO settings (id) VALUES (1);
 """
 
-VIEW_SCHEMA = """
+AFTER_MIGRATE_SCHEMA = """
+CREATE INDEX IF NOT EXISTS idx_meals_profile_day ON meals(profile_id, day);
+CREATE INDEX IF NOT EXISTS idx_photos_profile_pose_day ON progress_photos(profile_id, pose, day DESC);
+
 -- Daily totals are derived, never stored, so edits to a meal can never drift
 -- out of sync with the day's headline number.
 DROP VIEW IF EXISTS v_daily_totals;
@@ -150,5 +151,6 @@ def init_db() -> None:
     with get_conn() as conn:
         conn.executescript(SCHEMA)
         _migrate(conn)
-        conn.executescript(VIEW_SCHEMA)
+        conn.executescript(AFTER_MIGRATE_SCHEMA)
+
 
