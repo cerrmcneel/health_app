@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1115">
+<title>Today &middot; Tracker</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+<link rel="icon" href="/static/icons/favicon-32.png" sizes="32x32">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tracker">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1 id="day-label">Today</h1>
+      <div class="date" id="day-iso"></div>
+    </div>
+    <div class="btn-row" style="flex:none">
+      <button id="prev" aria-label="Previous day" style="min-width:44px;padding:0 12px">&#8249;</button>
+      <button id="next" aria-label="Next day" style="min-width:44px;padding:0 12px">&#8250;</button>
+    </div>
+  </header>
+
+  <div id="health" class="banner hidden"></div>
+
+  <section class="card">
+    <h2>Calories</h2>
+    <div class="kcal">
+      <span class="big" id="kcal">0</span>
+      <span class="of">/ <span id="kcal-target">0</span></span>
+      <span class="left"><b id="kcal-left">0</b>remaining</span>
+    </div>
+    <div class="bar" id="kcal-bar"><i style="width:0%"></i></div>
+
+    <div class="macros">
+      <div class="macro p">
+        <div class="label">Protein</div>
+        <div class="val"><span id="protein">0</span><span> / <span id="protein-target">0</span>g</span></div>
+        <div class="bar"><i id="protein-bar" style="width:0%"></i></div>
+      </div>
+      <div class="macro c">
+        <div class="label">Carbs</div>
+        <div class="val"><span id="carbs">0</span><span> / <span id="carbs-target">0</span>g</span></div>
+        <div class="bar"><i id="carbs-bar" style="width:0%"></i></div>
+      </div>
+      <div class="macro f">
+        <div class="label">Fat</div>
+        <div class="val"><span id="fat">0</span><span> / <span id="fat-target">0</span>g</span></div>
+        <div class="bar"><i id="fat-bar" style="width:0%"></i></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Meals</h2>
+    <div id="meals"><div class="empty">Nothing logged yet.</div></div>
+    <div class="btn-row" style="margin-top:12px">
+      <a class="btn btn-primary" href="/log">Log a meal</a>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Last 14 days</h2>
+    <div class="chart" id="chart"></div>
+    <div class="chart-foot">
+      <span id="chart-avg">&mdash;</span>
+      <span id="chart-logged"></span>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Progress photos</h2>
+    <div id="photo-status" class="muted" style="font-size:13px;margin-bottom:10px"></div>
+    <div class="gallery" id="latest-photos"></div>
+    <div class="btn-row" style="margin-top:12px">
+      <a class="btn" href="/capture">Take today&rsquo;s photos</a>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Daily targets</h2>
+    <form id="targets">
+      <div class="field"><label for="t-cal">Calories</label><input type="number" id="t-cal" min="0" step="10"></div>
+      <div class="macros">
+        <div><label for="t-pro">Protein (g)</label><input type="number" id="t-pro" min="0" step="5"></div>
+        <div><label for="t-car">Carbs (g)</label><input type="number" id="t-car" min="0" step="5"></div>
+        <div><label for="t-fat">Fat (g)</label><input type="number" id="t-fat" min="0" step="5"></div>
+      </div>
+      <button type="submit" class="full" style="margin-top:12px">Save targets</button>
+    </form>
+  </section>
+</div>
+
+<nav class="bottom">
+  <a href="/"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>Today</a>
+  <a href="/log"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Log</a>
+  <a href="/capture"><svg viewBox="0 0 24 24"><path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="13" r="3.6"/></svg>Capture</a>
+  <a href="/progress"><svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16"/><path d="M8 16v-5M13 16V8M18 16v-3"/></svg>Progress</a>
+</nav>
+<script type="module" src="/static/js/dashboard.js"></script>
+</body>
+</html>

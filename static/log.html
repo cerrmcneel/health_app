@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1115">
+<title>Log a meal &middot; Tracker</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+<link rel="icon" href="/static/icons/favicon-32.png" sizes="32x32">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tracker">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div><h1>Log a meal</h1><div class="date" id="today"></div></div>
+  </header>
+
+  <div id="health" class="banner hidden"></div>
+
+  <!-- STEP 1: capture or pick a photo -->
+  <section class="card" id="step-capture">
+    <h2>Photo</h2>
+    <!-- `capture="environment"` opens the rear camera directly on mobile; on
+         desktop the same input falls back to a normal file picker. -->
+    <input type="file" id="file" accept="image/*" capture="environment" class="hidden">
+    <input type="file" id="file-lib" accept="image/*" class="hidden">
+    <div class="btn-row">
+      <button class="btn-primary" id="btn-camera">Take photo</button>
+      <button id="btn-library">Choose file</button>
+    </div>
+    <button class="full" id="btn-manual" style="margin-top:10px">Enter manually instead</button>
+  </section>
+
+  <!-- STEP 2: analysing -->
+  <section class="card hidden center" id="step-loading">
+    <div class="spinner"></div>
+    <div id="loading-text">Analysing your meal&hellip;</div>
+    <div class="muted" style="font-size:12px;margin-top:6px" id="loading-sub">
+      A cold model load can take a minute the first time.
+    </div>
+  </section>
+
+  <!-- STEP 3: review + edit before committing -->
+  <section class="hidden" id="step-review">
+    <div class="card">
+      <h2>Review &amp; adjust</h2>
+      <img id="preview" alt="Meal photo" class="hidden"
+           style="width:100%;border-radius:11px;margin-bottom:12px;max-height:230px;object-fit:cover">
+      <div class="field">
+        <label for="meal-name">Meal name</label>
+        <input id="meal-name" placeholder="Meal">
+      </div>
+      <div class="field">
+        <label for="meal-type">Meal type</label>
+        <select id="meal-type">
+          <option value="breakfast">Breakfast</option>
+          <option value="lunch">Lunch</option>
+          <option value="dinner">Dinner</option>
+          <option value="snack">Snack</option>
+          <option value="other" selected>Other</option>
+        </select>
+      </div>
+      <div id="model-notes" class="banner hidden"></div>
+    </div>
+
+    <div class="card">
+      <h2>Items</h2>
+      <div id="items"></div>
+      <button class="full" id="btn-add-item">+ Add item</button>
+    </div>
+
+    <div class="card">
+      <h2>Total</h2>
+      <div class="kcal">
+        <span class="big" id="t-kcal">0</span>
+        <span class="of">kcal</span>
+      </div>
+      <div class="macros">
+        <div class="macro p"><div class="label">Protein</div><div class="val"><span id="t-pro">0</span><span>g</span></div></div>
+        <div class="macro c"><div class="label">Carbs</div><div class="val"><span id="t-car">0</span><span>g</span></div></div>
+        <div class="macro f"><div class="label">Fat</div><div class="val"><span id="t-fat">0</span><span>g</span></div></div>
+      </div>
+      <div class="btn-row" style="margin-top:16px">
+        <button id="btn-cancel">Discard</button>
+        <button class="btn-primary" id="btn-save">Save meal</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<nav class="bottom">
+  <a href="/"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>Today</a>
+  <a href="/log"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Log</a>
+  <a href="/capture"><svg viewBox="0 0 24 24"><path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="13" r="3.6"/></svg>Capture</a>
+  <a href="/progress"><svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16"/><path d="M8 16v-5M13 16V8M18 16v-3"/></svg>Progress</a>
+</nav>
+<script type="module" src="/static/js/log.js"></script>
+</body>
+</html>

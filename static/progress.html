@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1115">
+<title>Progress &middot; Tracker</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+<link rel="icon" href="/static/icons/favicon-32.png" sizes="32x32">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tracker">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div><h1>Progress</h1><div class="date" id="count"></div></div>
+    <a class="btn" href="/capture" style="flex:none">Capture</a>
+  </header>
+
+  <section class="card">
+    <h2>Compare</h2>
+    <div class="field">
+      <label for="pose-select">Pose</label>
+      <select id="pose-select">
+        <option value="front" selected>Front</option>
+        <option value="profile">Profile</option>
+      </select>
+    </div>
+    <div id="compare-wrap">
+      <div class="compare" id="compare">
+        <img id="img-before" alt="Earlier photo">
+        <img id="img-after" class="after" alt="Later photo">
+        <div class="handle" id="handle"></div>
+        <input type="range" id="split" min="0" max="100" value="50" aria-label="Comparison slider">
+      </div>
+      <div class="chart-foot">
+        <span id="label-before">&mdash;</span>
+        <span id="label-after">&mdash;</span>
+      </div>
+      <div class="field" style="margin-top:12px">
+        <label for="pick-before">Earlier photo</label>
+        <select id="pick-before"></select>
+      </div>
+      <div class="field">
+        <label for="pick-after">Later photo</label>
+        <select id="pick-after"></select>
+      </div>
+    </div>
+    <div id="compare-empty" class="empty hidden">
+      Take at least two photos of this pose to compare them.
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>All photos</h2>
+    <div class="gallery" id="gallery"></div>
+  </section>
+</div>
+
+<nav class="bottom">
+  <a href="/"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>Today</a>
+  <a href="/log"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Log</a>
+  <a href="/capture"><svg viewBox="0 0 24 24"><path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="13" r="3.6"/></svg>Capture</a>
+  <a href="/progress"><svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16"/><path d="M8 16v-5M13 16V8M18 16v-3"/></svg>Progress</a>
+</nav>
+<script type="module" src="/static/js/progress.js"></script>
+</body>
+</html>

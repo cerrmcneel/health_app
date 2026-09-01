@@ -1,0 +1,12 @@
+.git/
+.venv/
+venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+storage/
+certs/
+.env
+.claude/
+HANDOFF.md
+README.md
