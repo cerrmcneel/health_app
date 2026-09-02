@@ -121,6 +121,25 @@ async def create_photo(
     return {"photo": _serialize(row), "next_pose": nxt}
 
 
+@router.delete("/api/photos/{photo_id}", status_code=204)
+def delete_photo(request: Request, photo_id: int):
+    with get_conn() as conn:
+        profile_id = get_profile_id(request, conn)
+        row = conn.execute(
+            "SELECT * FROM progress_photos WHERE id = ? AND profile_id = ?",
+            (photo_id, profile_id),
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Photo not found.")
+        conn.execute("DELETE FROM progress_photos WHERE id = ?", (photo_id,))
+        try:
+            target = images.resolve_media(row["path"])
+            if target.is_file():
+                target.unlink()
+        except Exception:
+            pass
+
+
 @router.get("/media/{path:path}")
 def media(path: str):
     """Serve a stored image. Paths are validated against traversal."""
