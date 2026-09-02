@@ -18,7 +18,10 @@
 <div class="wrap">
   <header class="top">
     <div><h1>Progress</h1><div class="date" id="count"></div></div>
-    <a class="btn" href="/capture" style="flex:none">Capture</a>
+    <div style="display:flex;gap:8px">
+      <button class="btn" id="btn-upload-progress">+ Upload</button>
+      <a class="btn btn-primary" href="/capture" style="flex:none">Capture</a>
+    </div>
   </header>
 
   <section class="card">
@@ -59,6 +62,44 @@
     <h2>All photos</h2>
     <div class="gallery" id="gallery"></div>
   </section>
+</div>
+
+<!-- Upload Progress Photo Modal -->
+<div id="upload-photo-modal" class="modal-overlay hidden">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3>Upload Progress Photo</h3>
+      <button class="modal-close" data-close="upload-photo-modal">&times;</button>
+    </div>
+    <form id="upload-photo-form">
+      <div class="field">
+        <label for="up-photo-date">Date</label>
+        <div style="display:flex;gap:8px">
+          <input type="date" id="up-photo-date" required style="flex:1">
+          <button type="button" class="btn" id="up-btn-yesterday" style="flex:none;font-size:12px;padding:0 10px">Yesterday</button>
+          <button type="button" class="btn" id="up-btn-today" style="flex:none;font-size:12px;padding:0 10px">Today</button>
+        </div>
+      </div>
+
+      <div class="field" style="margin-top:12px">
+        <label for="up-photo-pose">Pose</label>
+        <select id="up-photo-pose" style="width:100%;height:38px;background:var(--surface-2);color:var(--text);border:1px solid var(--line);border-radius:8px">
+          <option value="front">Front</option>
+          <option value="profile">Profile</option>
+        </select>
+      </div>
+
+      <div class="field" style="margin-top:12px">
+        <label for="up-photo-file">Photo File</label>
+        <input type="file" id="up-photo-file" accept="image/*" required style="width:100%;padding:8px 0">
+        <div id="up-photo-preview" class="hidden" style="margin-top:8px">
+          <img id="up-preview-img" alt="Selected photo" style="max-height:160px;border-radius:8px;object-fit:cover;border:1px solid var(--line)">
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary full" style="margin-top:16px" id="up-photo-submit">Upload &amp; Save</button>
+    </form>
+  </div>
 </div>
 
 <nav class="bottom">

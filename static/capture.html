@@ -43,9 +43,12 @@
     <div class="shutter-row">
       <button class="icon-btn" id="btn-timer" aria-label="Self-timer">0s</button>
       <button class="shutter" id="shutter" aria-label="Take photo"></button>
+      <button class="icon-btn" id="btn-upload" aria-label="Upload photo from files" title="Upload from files" style="font-size:17px">&#128194;</button>
       <button class="icon-btn" id="btn-flip" aria-label="Switch camera">&#8635;</button>
     </div>
   </div>
+
+  <input type="file" id="file-upload" accept="image/*" class="hidden">
 
   <!-- Countdown / status overlay -->
   <div class="cam-msg hidden" id="msg">

@@ -201,6 +201,41 @@ $('btn-timer').addEventListener('click', () => {
   $('btn-timer').textContent = `${timerSeconds}s`;
 });
 
+// --- file upload fallback ---
+$('btn-upload')?.addEventListener('click', () => {
+  $('file-upload')?.click();
+});
+
+$('file-upload')?.addEventListener('change', async (e) => {
+  const file = e.target.files?.[0];
+  e.target.value = '';
+  if (!file) return;
+
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const today = new Date().toISOString().slice(0, 10);
+
+  const useYesterday = confirm(`Upload "${file.name}" for Yesterday (${yesterday})?\n\n- Click OK for Yesterday (${yesterday})\n- Click Cancel for Today (${today})`);
+  const chosenDay = useYesterday ? yesterday : today;
+
+  const form = new FormData();
+  form.append('image', file, file.name || `${pose}.jpg`);
+  form.append('pose', pose);
+  form.append('day', chosenDay);
+
+  try {
+    const result = await postForm('/api/photos', form);
+    toast(`${pose} photo saved for ${chosenDay}`);
+    queue = queue.filter((p) => p !== pose);
+    if (queue.length) {
+      await loadPose(queue[0]);
+    } else {
+      finish(result.photo);
+    }
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+
 // --- overlays ---
 function showMsg(html) {
   $('msg-inner').innerHTML = html;

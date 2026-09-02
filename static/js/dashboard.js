@@ -1,5 +1,5 @@
 import {
-  getJSON, postJSON, putJSON, patchJSON, del, fmt, pct, prettyDate, shiftDay, todayISO,
+  getJSON, postJSON, postForm, putJSON, patchJSON, del, fmt, pct, prettyDate, shiftDay, todayISO,
   toast, esc, checkHealth, getActiveProfileId, setActiveProfileId,
 } from './api.js';
 
@@ -384,6 +384,79 @@ async function loadPhotos() {
       </figure>`).join('')
     : '<div class="empty" style="grid-column:1/-1">No progress photos yet.</div>';
 }
+
+// --- Photo Upload Modal Handlers ---
+function openPhotoUploadModal() {
+  const yesterday = shiftDay(todayISO(), -1);
+  const dateInput = $('up-photo-date');
+  if (dateInput) dateInput.value = yesterday;
+  $('upload-photo-form')?.reset();
+  if (dateInput) dateInput.value = yesterday;
+  $('up-photo-preview')?.classList.add('hidden');
+  openModal('upload-photo-modal');
+}
+
+$('btn-upload-photo')?.addEventListener('click', openPhotoUploadModal);
+$('btn-upload-photo-2')?.addEventListener('click', openPhotoUploadModal);
+
+$('up-btn-yesterday')?.addEventListener('click', () => {
+  const input = $('up-photo-date');
+  if (input) input.value = shiftDay(todayISO(), -1);
+});
+
+$('up-btn-today')?.addEventListener('click', () => {
+  const input = $('up-photo-date');
+  if (input) input.value = todayISO();
+});
+
+let photoUploadPreviewURL = null;
+$('up-photo-file')?.addEventListener('change', (e) => {
+  const file = e.target.files?.[0];
+  if (file) {
+    if (photoUploadPreviewURL) URL.revokeObjectURL(photoUploadPreviewURL);
+    photoUploadPreviewURL = URL.createObjectURL(file);
+    const img = $('up-preview-img');
+    if (img) img.src = photoUploadPreviewURL;
+    $('up-photo-preview')?.classList.remove('hidden');
+  } else {
+    $('up-photo-preview')?.classList.add('hidden');
+  }
+});
+
+$('upload-photo-form')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const file = $('up-photo-file')?.files?.[0];
+  if (!file) return;
+
+  const dateVal = $('up-photo-date')?.value || todayISO();
+  const poseVal = $('up-photo-pose')?.value || 'front';
+
+  const formData = new FormData();
+  formData.append('image', file, file.name || 'photo.jpg');
+  formData.append('pose', poseVal);
+  formData.append('day', dateVal);
+
+  const btn = $('up-photo-submit');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Uploading…';
+  }
+
+  try {
+    await postForm('/api/photos', formData);
+    closeModal('upload-photo-modal');
+    toast(`Progress photo uploaded for ${prettyDate(dateVal)}`);
+    await loadPhotos();
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Upload & Save';
+    }
+  }
+});
+
 
 // --- Targets & Goal Calculator Modal ---
 function fillTargetsModal(t) {

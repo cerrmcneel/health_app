@@ -89,17 +89,18 @@ def commit_pending(token: str, when: datetime) -> str | None:
     return relative(dest)
 
 
-def save_progress_photo(img: Image.Image, pose: str, day: str) -> tuple[str, int, int, int]:
-    """Write a progress photo to {pose}/YYYY-MM-DD_{pose}.jpg.
+def save_progress_photo(img: Image.Image, pose: str, day: str, profile_id: int = 1) -> tuple[str, int, int, int]:
+    """Write a progress photo to {pose}/YYYY-MM-DD_{pose}[_p{profile_id}].jpg.
 
     Returns (relative_path, width, height, bytes). Re-shooting the same pose on
-    the same day intentionally overwrites -- the DB has a UNIQUE(day, pose).
+    the same day intentionally overwrites for that profile.
     """
     if pose not in config.POSES:
         raise ImageError(f"Unknown pose '{pose}'.")
     directory = config.POSE_DIRS[pose]
     directory.mkdir(parents=True, exist_ok=True)
-    dest = directory / f"{day}_{pose}.jpg"
+    suffix = f"_p{profile_id}" if profile_id > 1 else ""
+    dest = directory / f"{day}_{pose}{suffix}.jpg"
     data = to_jpeg_bytes(img, quality=92)
     dest.write_bytes(data)
     return relative(dest), img.width, img.height, len(data)

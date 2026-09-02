@@ -81,15 +81,18 @@ async def create_photo(
     if pose not in config.POSES:
         raise HTTPException(status_code=400, detail=f"pose must be one of {config.POSES}")
 
+    target_day = (day or config.now().date()).isoformat()
+
+    with get_conn() as conn:
+        profile_id = get_profile_id(request, conn)
+
     try:
         img = images.open_image(await image.read())
-        target_day = (day or config.now().date()).isoformat()
-        rel, w, h, size = images.save_progress_photo(img, pose, target_day)
+        rel, w, h, size = images.save_progress_photo(img, pose, target_day, profile_id=profile_id)
     except images.ImageError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     with get_conn() as conn:
-        profile_id = get_profile_id(request, conn)
         existing = conn.execute(
             "SELECT id FROM progress_photos WHERE profile_id = ? AND day = ? AND pose = ?",
             (profile_id, target_day, pose),
