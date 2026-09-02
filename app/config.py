@@ -1,6 +1,6 @@
 """Runtime configuration, loaded from .env with sane defaults."""
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -34,10 +34,28 @@ POSE_DIRS = {"front": FRONT_DIR, "profile": PROFILE_DIR}
 
 STATIC_DIR = BASE_DIR / "static"
 
-try:
-    TZ = ZoneInfo(os.getenv("TZ", "UTC"))
-except Exception:  # bad/unknown zone name should not stop the app booting
-    TZ = ZoneInfo("UTC")
+def _load_tz() -> ZoneInfo | timezone:
+    """Resolve the configured timezone, degrading rather than refusing to boot.
+
+    Windows ships no system zoneinfo database, so `zoneinfo` depends on the
+    `tzdata` package being installed. Falling back to ZoneInfo("UTC") is not
+    safe there: with no database present that raises too, and the app dies at
+    import time. datetime.timezone.utc needs no database and always works.
+    """
+    name = os.getenv("TZ", "UTC")
+    try:
+        return ZoneInfo(name)
+    except Exception:
+        pass
+    try:
+        return ZoneInfo("UTC")
+    except Exception:
+        # No tz database at all. Day boundaries fall at UTC midnight, which is
+        # wrong for most users but keeps the app usable; install `tzdata`.
+        return timezone.utc
+
+
+TZ = _load_tz()
 
 
 def now() -> datetime:

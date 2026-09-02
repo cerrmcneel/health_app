@@ -115,6 +115,56 @@ without forwarding a port.
 
 ---
 
+## Running it as a Windows service (starts with Windows)
+
+The app runs from a virtual environment invoked by absolute path, so nothing has
+to be activated and no terminal stays open.
+
+```powershell
+python -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+powershell -ExecutionPolicy Bypass -File install_autostart.ps1
+```
+
+That registers a `FitnessTracker` scheduled task which:
+
+- starts at logon after a 20s delay (so Ollama and Docker settle first),
+- runs `pythonw.exe`, so there is no console window,
+- restarts up to 3 times, a minute apart, if it dies,
+- never times out (`ExecutionTimeLimit` is disabled for long-running services).
+
+| Action | Command |
+|---|---|
+| Check | `Invoke-RestMethod http://localhost:8010/api/health \| Format-List` |
+| Logs | `Get-Content logs	racker.log -Tail 40 -Wait` |
+| Stop | `Stop-ScheduledTask -TaskName FitnessTracker` |
+| Start | `Start-ScheduledTask -TaskName FitnessTracker` |
+| Remove | `powershell -ExecutionPolicy Bypass -File install_autostart.ps1 -Uninstall` |
+
+`pythonw.exe` has no console, so a traceback has nowhere to go. Everything is
+logged to `logs/tracker.log` (rotated, 5 x 2 MB), and a failure that happens
+before logging is configured is written to `logs/crash.log`.
+
+To start before any user logs in, run an **elevated** PowerShell and pass
+`-Trigger AtStartup`; the task then runs as SYSTEM. Note that Ollama itself
+starts from a per-user startup entry on this machine, so photo analysis only
+becomes available after logon either way.
+
+### Serving HTTPS
+
+Set `SSL_CERTFILE` and `SSL_KEYFILE` in `.env` and the service serves TLS
+directly. With Tailscale already installed, the least-effort option is to let it
+terminate TLS and manage renewal for you:
+
+```powershell
+tailscale serve --bg --https=443 http://localhost:8010
+```
+
+The app is then reachable at `https://<machine>.<tailnet>.ts.net` with a real
+certificate — which is what the camera and home-screen install both require.
+
+---
+
 ## Deployment
 
 See `Dockerfile` and `docker-compose.yml`; `HANDOFF.md` covers the details.

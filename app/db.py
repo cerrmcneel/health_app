@@ -127,6 +127,32 @@ def get_conn() -> Iterator[sqlite3.Connection]:
         conn.close()
 
 
+PHOTOS_TABLE_V2 = """
+CREATE TABLE progress_photos__new (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    profile_id  INTEGER NOT NULL DEFAULT 1 REFERENCES profiles(id) ON DELETE CASCADE,
+    day         TEXT    NOT NULL,
+    taken_at    TEXT    NOT NULL,
+    pose        TEXT    NOT NULL CHECK (pose IN ('front','profile')),
+    path        TEXT    NOT NULL,
+    width       INTEGER NOT NULL DEFAULT 0,
+    height      INTEGER NOT NULL DEFAULT 0,
+    bytes       INTEGER NOT NULL DEFAULT 0
+)
+"""
+
+
+def _columns(conn: sqlite3.Connection, table: str) -> set[str]:
+    return {r["name"] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+
+
+def _table_sql(conn: sqlite3.Connection, table: str) -> str:
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name=?", (table,)
+    ).fetchone()
+    return (row["sql"] or "") if row else ""
+
+
 def _migrate(conn: sqlite3.Connection) -> None:
     # Ensure default profile exists
     conn.execute(
@@ -136,14 +162,47 @@ def _migrate(conn: sqlite3.Connection) -> None:
         (config.now().isoformat(),),
     )
 
-    # Migrate columns if migrating an older database
-    meal_cols = {r["name"] for r in conn.execute("PRAGMA table_info(meals)").fetchall()}
-    if "profile_id" not in meal_cols:
-        conn.execute("ALTER TABLE meals ADD COLUMN profile_id INTEGER DEFAULT 1 REFERENCES profiles(id) ON DELETE CASCADE")
+    # SQLite rejects ADD COLUMN when it carries both REFERENCES and a non-NULL
+    # default ("Cannot add a REFERENCES column with non-NULL default value"), so
+    # the column is added plain. Every pre-profiles row belongs to the default
+    # profile by definition, which is exactly what DEFAULT 1 gives.
+    if "profile_id" not in _columns(conn, "meals"):
+        conn.execute("ALTER TABLE meals ADD COLUMN profile_id INTEGER NOT NULL DEFAULT 1")
 
-    photo_cols = {r["name"] for r in conn.execute("PRAGMA table_info(progress_photos)").fetchall()}
-    if "profile_id" not in photo_cols:
-        conn.execute("ALTER TABLE progress_photos ADD COLUMN profile_id INTEGER DEFAULT 1 REFERENCES profiles(id) ON DELETE CASCADE")
+    # A v1 progress_photos carries a table-level UNIQUE(day, pose). That would
+    # stop a second profile ever storing its own photo for a day the first
+    # profile already used. A table constraint cannot be dropped in place, so
+    # the table is rebuilt when the legacy shape is detected.
+    photo_sql = " ".join(_table_sql(conn, "progress_photos").split()).lower()
+    legacy_unique = "unique (day, pose)" in photo_sql or "unique(day, pose)" in photo_sql
+    if "profile_id" not in _columns(conn, "progress_photos") or legacy_unique:
+        has_pid = "profile_id" in _columns(conn, "progress_photos")
+        pid_expr = "profile_id" if has_pid else "1"
+        conn.execute("DROP TABLE IF EXISTS progress_photos__new")
+        conn.execute(PHOTOS_TABLE_V2)
+        conn.execute(
+            f"""INSERT INTO progress_photos__new
+                    (id, profile_id, day, taken_at, pose, path, width, height, bytes)
+                SELECT id, COALESCE({pid_expr}, 1), day, taken_at, pose, path,
+                       COALESCE(width, 0), COALESCE(height, 0), COALESCE(bytes, 0)
+                FROM progress_photos"""
+        )
+        conn.execute("DROP TABLE progress_photos")
+        conn.execute("ALTER TABLE progress_photos__new RENAME TO progress_photos")
+
+    # Enforce one photo per profile/day/pose. This is an index rather than a
+    # table constraint so it can also be applied to databases already created
+    # with the profile-aware schema, which shipped without any constraint at
+    # all. Duplicates must go first or the index cannot be built.
+    conn.execute(
+        """DELETE FROM progress_photos
+           WHERE id NOT IN (SELECT MAX(id) FROM progress_photos
+                            GROUP BY profile_id, day, pose)"""
+    )
+    conn.execute(
+        """CREATE UNIQUE INDEX IF NOT EXISTS ux_photos_profile_day_pose
+           ON progress_photos(profile_id, day, pose)"""
+    )
 
 
 def init_db() -> None:

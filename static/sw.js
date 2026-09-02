@@ -5,7 +5,11 @@
 // served stale, so /api and /media are always network-only -- a wrong calorie
 // total is worse than an error message.
 
-const VERSION = 'v1';
+// Injected by the server from the static files' own mtimes and sizes, so a
+// changed asset invalidates the cache automatically. Bumping a constant by
+// hand was the previous scheme and it was forgotten on the first update,
+// which left installed clients running old JS against new HTML.
+const VERSION = '__BUILD_ID__';
 const SHELL_CACHE = `shell-${VERSION}`;
 const SHARE_CACHE = 'shared-image';
 const SHARE_KEY = '/__shared-image';

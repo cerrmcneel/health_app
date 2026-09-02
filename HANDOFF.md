@@ -62,22 +62,18 @@ Everything below was tested, not assumed:
 | Ollama | Running, reachable at `http://localhost:11434` |
 | Installed vision model | **`gemma4:12b` only** |
 | Other installed models | `deepseek-r1:14b`, `devstral:24b`, `qwen3-coder:30b` (none vision-capable) |
-| Dev port | 8077 (port 8000 was occupied by an unrelated python process) |
-| Git | **Not a repo yet.** `git init` before deploying. |
+| Service port | 8010 (8000 and 8077 are taken by other processes) |
+| Git | Repo initialised; 9 commits through the profiles/weights work. |
 | Docker | v29.7.2 available; user already runs containers (nginx on 8082, 8086) |
 
 `.env` is gitignored. `.env.example` is the template.
 
-### Demo data — wipe before production
+### Database state
 
-The database currently holds **31 seeded demo meals and 11 synthetic progress
-photos** used to exercise the UI. It is all fake. Before going live:
-
-```bash
-rm -rf storage/fitness_tracker
-```
-
-The schema recreates itself on next start.
+Empty apart from the default profile — the seeded demo data was removed, and the
+test rows created while verifying the profiles/weights work were cleaned up too.
+To reset from scratch, `rm -rf storage/fitness_tracker`; the schema recreates
+itself on next start.
 
 ---
 
@@ -141,6 +137,59 @@ sudo chown -R 1000:1000 /path/to/storage
 machine, either point `OLLAMA_URL` back at the strong machine, or pull a smaller
 vision model (`qwen2.5-vl:7b`) and set `VISION_MODEL`. Verify with
 `GET /api/health` — `model_ready: true` means installed *and* vision-capable.
+
+### 4.7 `tzdata` is required on Windows
+
+Windows ships no system zoneinfo database, so `zoneinfo` depends on the `tzdata`
+package. It is in `requirements.txt` now. Without it the app died at import with
+`ZoneInfoNotFoundError` -- and the fallback in `config.py` used to be
+`ZoneInfo("UTC")`, which fails for the same reason, so there was no recovery.
+`config.py` now degrades to `datetime.timezone.utc`. This only showed up in a
+clean venv; the dev machine's system Python had `tzdata` from another project.
+
+### 4.8 Do not hand-bump the service worker cache version
+
+`static/sw.js` uses a `__BUILD_ID__` placeholder that `app/main.py` fills with a
+hash of every static file's size and mtime. Editing any asset invalidates the
+cache automatically. The previous hand-bumped constant was not bumped when the
+frontend grew by 600 lines, which left installed clients running old JS against
+new HTML.
+
+### 4.9 Test migrations against an existing database
+
+The profile migration crashed on any pre-profiles database
+(`ALTER TABLE ... ADD COLUMN ... REFERENCES` with a non-NULL default is rejected
+by SQLite) and was never caught because testing only ever happened on a freshly
+wiped DB. When you change the schema, run the app once against a copy of a real
+database before shipping.
+
+---
+
+## 9. Running as a Windows service
+
+Registered and verified on the dev box:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File install_autostart.ps1
+```
+
+Task `FitnessTracker`, port 8010, venv `pythonw.exe` (no console), logs to
+`logs/tracker.log`. Two triggers: at-logon with a 20s delay, plus an independent
+repeating trigger every 5 minutes acting as a watchdog.
+
+Things that were tried and do **not** work, so nobody repeats them:
+
+- `-RestartCount` / `-RestartInterval` alone: only fires on a failure exit code;
+  a hard kill left the task in `Ready` and the app stayed down.
+- A repetition on the logon trigger: without an explicit `RepetitionDuration`
+  Windows schedules nothing (`NextRunTime` comes back empty), and a logon
+  trigger's repetition does not re-arm after the task ends.
+- `-RepetitionDuration ([TimeSpan]::MaxValue)`: serialises to
+  `P99999999DT23H59M59S`, which Task Scheduler rejects. Use `P3650D`.
+- `MultipleInstances IgnoreNew` does not suppress the watchdog, because the task
+  reports `Ready` even while the app is running. `service.py` therefore checks
+  whether the port is already served and exits quietly; without that, every tick
+  wrote a bind-failure traceback to the log.
 
 ---
 

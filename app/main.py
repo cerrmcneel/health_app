@@ -5,10 +5,11 @@ Route style note: endpoints that only touch SQLite are declared `def`, not
 never stalls the event loop. Only the Ollama call -- the genuinely slow, I/O-bound
 one -- is `async def`, which is where the async win actually is.
 """
+import hashlib
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -68,6 +69,24 @@ def progress_page():
     return FileResponse(config.STATIC_DIR / "progress.html")
 
 
+def _build_id() -> str:
+    """Short hash of every static file's size and mtime.
+
+    The service worker keys its cache on this, so editing any asset changes the
+    cache name and installed clients pick the change up on their next visit.
+    Relying on a hand-bumped constant meant a forgotten bump shipped stale JS
+    against fresh HTML, which is exactly the kind of breakage nobody reproduces.
+    """
+    digest = hashlib.sha256()
+    for path in sorted(config.STATIC_DIR.rglob("*")):
+        if path.is_file():
+            stat = path.stat()
+            digest.update(path.name.encode())
+            digest.update(str(stat.st_size).encode())
+            digest.update(str(int(stat.st_mtime)).encode())
+    return digest.hexdigest()[:12]
+
+
 @app.get("/sw.js", include_in_schema=False)
 def service_worker():
     """Served from the root so the worker's scope covers the whole app.
@@ -75,8 +94,9 @@ def service_worker():
     At /static/js/sw.js its scope would be limited to /static/js/, and it could
     not control the pages or intercept the share target.
     """
-    return FileResponse(
-        config.STATIC_DIR / "sw.js",
+    source = (config.STATIC_DIR / "sw.js").read_text(encoding="utf-8")
+    return Response(
+        content=source.replace("__BUILD_ID__", _build_id()),
         media_type="application/javascript",
         # The worker is the update mechanism for everything else, so it must
         # never be served from the HTTP cache.
