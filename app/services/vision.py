@@ -81,6 +81,28 @@ Rules:
 - Set `confidence` to "high" when quantities were specified, "medium" for standard recognizable dishes, or "low" for ambiguous items.
 - Never refuse, never ask questions, never output empty items. Always return valid JSON matching the schema."""
 
+MULTIMODAL_SYSTEM_PROMPT = """You are a precision nutrition estimation engine. You receive a photograph of a meal together with user notes and natural language context. You output JSON only.
+
+Follow this procedure:
+
+1. FUSE VISUAL EVIDENCE AND USER CONTEXT:
+- Visual Evidence (Photo): Use the photo to scale plate size, observe three-dimensional portion depth and volume, verify item counts, and detect unmentioned visible foods (e.g. side salad, sauces, garnishes).
+- User Context (Notes): Use the user's notes for ingredients invisible or ambiguous in the photo: specific cooking oils/butter, dressings, sauces, meat lean/fat percentages, dairy types (whole vs skim vs oat milk), sweeteners, or specified brand names and exact weights/counts.
+- When the user specifies an exact count or measurement (e.g. "2 eggs", "6 oz steak", "1 pint beer"), prioritize their stated quantity while using the photo to verify the dish.
+
+2. SEPARATE DISTINCT COMPONENTS: Identify each component separately (e.g. burger bun, patty, cheese, bacon, fries, mayo).
+
+3. ESTIMATE MASS (grams) & MACROS: Provide edible portion weight in grams and accurate prepared macronutrients (protein, carbs, fat, calories).
+
+4. CHECK ARITHMETIC: For each item, protein_g*4 + carbs_g*4 + fat_g*9 must land within 10% of its calories.
+
+Rules:
+- `dish` is a descriptive title for the overall meal (e.g. "Ribeye Steak with Roasted Potatoes and Asparagus").
+- `grams` is edible mass in grams.
+- `basis` combines the visual scale and the user's notes, e.g. "photo shows ~250g steak; user noted cooked in 1 tbsp olive oil".
+- Set `confidence` to "high" when user notes clarify quantities/ingredients, otherwise "medium" or "low".
+- Never refuse, never ask questions, never return empty items. Return valid JSON matching the schema."""
+
 USER_PROMPT = (
     "Estimate the macronutrients in this meal. Break it into separate items, "
     "state your size reference in `basis` for each, and return JSON matching the schema."
@@ -165,6 +187,21 @@ async def analyze_meal_text(description: str, model: str | None = None) -> dict[
     messages = [
         {"role": "system", "content": TEXT_SYSTEM_PROMPT},
         {"role": "user", "content": user_content},
+    ]
+    return await _call_ollama(messages, model)
+
+
+async def analyze_meal_multimodal(image_b64: str, text: str, model: str | None = None) -> dict[str, Any]:
+    """Combine photo analysis with user notes/context for the most accurate estimate."""
+    model = model or config.VISION_MODEL
+    user_content = (
+        f"Estimate the macronutrients in this meal photograph.\n\n"
+        f"User notes & context:\n\"{text.strip()}\"\n\n"
+        f"Combine the visual proof from the image with the user's notes to accurately identify components, portion sizes, and macros."
+    )
+    messages = [
+        {"role": "system", "content": MULTIMODAL_SYSTEM_PROMPT},
+        {"role": "user", "content": user_content, "images": [image_b64]},
     ]
     return await _call_ollama(messages, model)
 

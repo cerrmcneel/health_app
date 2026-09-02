@@ -18,16 +18,41 @@ router = APIRouter(prefix="/api", tags=["meals"])
 
 
 @router.post("/analyze")
-async def analyze(image: UploadFile = File(...), model: str | None = Form(default=None)):
-    """Estimate macros from a meal photo. Writes nothing to the database."""
-    try:
-        img = images.open_image(await image.read())
-    except images.ImageError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+async def analyze(
+    image: UploadFile | None = File(default=None),
+    text: str | None = Form(default=None),
+    model: str | None = Form(default=None),
+):
+    """Estimate macros from a photo, natural language description, or BOTH."""
+    clean_text = (text or "").strip()
 
-    b64 = images.prepare_for_vision(img)
+    img = None
+    b64 = None
+    if image and image.filename:
+        try:
+            content = await image.read()
+            if content:
+                img = images.open_image(content)
+                b64 = images.prepare_for_vision(img)
+        except images.ImageError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if not b64 and not clean_text:
+        raise HTTPException(
+            status_code=400,
+            detail="Please provide a meal photo, a text description, or both.",
+        )
+
     try:
-        result = await vision.analyze_meal(b64, model=model)
+        if b64 and clean_text:
+            result = await vision.analyze_meal_multimodal(image_b64=b64, text=clean_text, model=model)
+            source = "photo"
+        elif b64:
+            result = await vision.analyze_meal(b64, model=model)
+            source = "photo"
+        else:
+            result = await vision.analyze_meal_text(clean_text, model=model)
+            source = "text"
     except vision.VisionError as exc:
         # 502: the failure is in the upstream model, not in the client's request.
         raise HTTPException(status_code=502, detail=str(exc)) from exc
@@ -35,10 +60,15 @@ async def analyze(image: UploadFile = File(...), model: str | None = Form(defaul
     if not result["items"]:
         raise HTTPException(
             status_code=422,
-            detail="The model found no food in this photo. Try a clearer shot, or log it by hand.",
+            detail="The model could not identify any food items. Try a clearer shot or more details.",
         )
 
-    result["pending_image"] = images.save_pending(img)
+    result["source"] = source
+    if img:
+        result["pending_image"] = images.save_pending(img)
+    else:
+        result["pending_image"] = None
+
     return result
 
 

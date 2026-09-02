@@ -22,29 +22,41 @@
 
   <div id="health" class="banner hidden"></div>
 
-  <!-- STEP 1: capture, describe, or enter manually -->
+  <!-- STEP 1: capture, describe, or both -->
   <section class="card" id="step-capture">
-    <h2>Photo (AI Vision)</h2>
-    <!-- `capture="environment"` opens the rear camera directly on mobile; on
-         desktop the same input falls back to a normal file picker. -->
+    <h2>Photo &amp; Details</h2>
+    <p class="muted" style="font-size:12.5px;margin:-4px 0 12px">
+      Provide a <b>photo</b>, a <b>description</b>, or <b>both</b> for maximum accuracy.
+    </p>
+
+    <!-- Hidden file inputs -->
     <input type="file" id="file" accept="image/*" capture="environment" class="hidden">
     <input type="file" id="file-lib" accept="image/*" class="hidden">
-    <div class="btn-row">
-      <button class="btn-primary" id="btn-camera">Take photo</button>
-      <button id="btn-library">Choose file</button>
+
+    <!-- Selected photo thumbnail with remove button -->
+    <div id="intake-photo-box" class="hidden" style="position:relative;margin-bottom:12px">
+      <img id="intake-photo-thumb" alt="Selected meal photo" style="width:100%;max-height:220px;object-fit:cover;border-radius:10px;border:1px solid var(--line);display:block">
+      <button type="button" id="btn-remove-photo" style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,.75);color:#fff;border:0;border-radius:50%;width:28px;height:28px;cursor:pointer;font-size:17px;line-height:1;display:flex;align-items:center;justify-content:center" title="Remove photo">&times;</button>
     </div>
 
-    <hr style="border:0;border-top:1px solid var(--line);margin:18px 0 14px">
+    <!-- Photo intake buttons -->
+    <div class="btn-row" id="photo-btns-row" style="margin-bottom:12px">
+      <button type="button" class="btn" id="btn-camera">&#128247; Take photo</button>
+      <button type="button" class="btn" id="btn-library">&#128194; Choose photo</button>
+    </div>
 
-    <h2>Describe with AI</h2>
-    <form id="text-intake-form">
-      <textarea id="meal-description" rows="3" placeholder="e.g. 2 scrambled eggs with cheese, 2 slices sourdough toast with butter, and a large iced latte" style="width:100%;margin-bottom:10px;resize:vertical;font-family:inherit" required></textarea>
-      <button type="submit" class="btn btn-primary full" id="btn-analyze-text">&#x2728; Estimate Macros with AI</button>
-    </form>
+    <div class="field" style="margin-bottom:14px">
+      <label for="meal-description">Description &amp; Context <small class="muted">(optional with photo)</small></label>
+      <textarea id="meal-description" rows="3" placeholder="e.g. 2 scrambled eggs with cheese, 2 slices sourdough toast with butter, and an iced latte with whole milk" style="width:100%;resize:vertical;font-family:inherit"></textarea>
+    </div>
 
-    <hr style="border:0;border-top:1px solid var(--line);margin:18px 0 14px">
+    <button type="button" class="btn btn-primary full" id="btn-analyze-ai" style="padding:14px;font-size:15px">&#x2728; Estimate Macros with AI</button>
 
-    <button class="full" id="btn-manual">Enter items manually without AI</button>
+    <div style="text-align:center;margin-top:14px">
+      <button type="button" id="btn-manual" style="background:none;border:0;color:var(--muted);text-decoration:underline;cursor:pointer;font-size:13px;padding:4px">
+        Or enter items manually without AI
+      </button>
+    </div>
   </section>
 
   <!-- STEP 2: analysing -->

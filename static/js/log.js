@@ -15,19 +15,36 @@ function show(step) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-// --- photo intake ---
-$('btn-camera').addEventListener('click', () => $('file').click());
-$('btn-library').addEventListener('click', () => $('file-lib').click());
+// --- photo and text intake ---
+let selectedFile = null;
+
+$('btn-camera')?.addEventListener('click', () => $('file').click());
+$('btn-library')?.addEventListener('click', () => $('file-lib').click());
+
 for (const id of ['file', 'file-lib']) {
-  $(id).addEventListener('change', (e) => {
+  $(id)?.addEventListener('change', (e) => {
     const file = e.target.files?.[0];
-    // Reset so picking the same file twice still fires a change event.
     e.target.value = '';
-    if (file) analyze(file);
+    if (file) {
+      selectedFile = file;
+      if (previewURL) URL.revokeObjectURL(previewURL);
+      previewURL = URL.createObjectURL(file);
+      $('intake-photo-thumb').src = previewURL;
+      $('intake-photo-box').classList.remove('hidden');
+      $('photo-btns-row').classList.add('hidden');
+    }
   });
 }
 
-$('btn-manual').addEventListener('click', () => {
+$('btn-remove-photo')?.addEventListener('click', () => {
+  selectedFile = null;
+  if (previewURL) URL.revokeObjectURL(previewURL);
+  previewURL = null;
+  $('intake-photo-box').classList.add('hidden');
+  $('photo-btns-row').classList.remove('hidden');
+});
+
+$('btn-manual')?.addEventListener('click', () => {
   draft = { name: 'Meal', items: [blankItem()], pendingImage: null, model: null, raw: null, source: 'manual' };
   $('preview').classList.add('hidden');
   $('model-notes').classList.add('hidden');
@@ -36,15 +53,28 @@ $('btn-manual').addEventListener('click', () => {
   show('step-review');
 });
 
-async function analyze(file) {
-  show('step-loading');
-  $('loading-text').textContent = 'Analysing your meal…';
+$('btn-analyze-ai')?.addEventListener('click', async () => {
+  const text = $('meal-description').value.trim();
+  if (!selectedFile && !text) {
+    toast('Please provide a photo, a description, or both.', true);
+    return;
+  }
+  await runAnalysis(selectedFile, text);
+});
 
-  if (previewURL) URL.revokeObjectURL(previewURL);
-  previewURL = URL.createObjectURL(file);
+async function runAnalysis(file, text) {
+  show('step-loading');
+  if (file && text) {
+    $('loading-text').textContent = 'Combining photo & notes with AI…';
+  } else if (file) {
+    $('loading-text').textContent = 'Analysing meal photo with AI…';
+  } else {
+    $('loading-text').textContent = 'Estimating macros from description…';
+  }
 
   const form = new FormData();
-  form.append('image', file, file.name || 'meal.jpg');
+  if (file) form.append('image', file, file.name || 'meal.jpg');
+  if (text) form.append('text', text);
 
   const started = Date.now();
   const tick = setInterval(() => {
@@ -59,61 +89,16 @@ async function analyze(file) {
       pendingImage: result.pending_image,
       model: result.model,
       raw: result.raw,
-      source: 'photo',
+      source: result.source || (file ? 'photo' : 'text'),
     };
     $('meal-name').value = draft.name;
-    $('preview').src = previewURL;
-    $('preview').classList.remove('hidden');
 
-    const notes = $('model-notes');
-    if (result.notes) {
-      notes.className = 'banner';
-      notes.innerHTML = `<b>${esc(result.model)}:</b> ${esc(result.notes)}`;
-      notes.classList.remove('hidden');
+    if (file && previewURL) {
+      $('preview').src = previewURL;
+      $('preview').classList.remove('hidden');
     } else {
-      notes.classList.add('hidden');
+      $('preview').classList.add('hidden');
     }
-
-    renderItems();
-    show('step-review');
-  } catch (err) {
-    toast(err.message, true);
-    show('step-capture');
-  } finally {
-    clearInterval(tick);
-    $('loading-sub').textContent = 'A cold model load can take a minute the first time.';
-  }
-}
-
-// --- natural language text intake ---
-$('text-intake-form')?.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const text = $('meal-description').value.trim();
-  if (!text) return;
-  analyzeText(text);
-});
-
-async function analyzeText(text) {
-  show('step-loading');
-  $('loading-text').textContent = 'Estimating macros with AI…';
-
-  const started = Date.now();
-  const tick = setInterval(() => {
-    $('loading-sub').textContent = `${Math.round((Date.now() - started) / 1000)}s elapsed`;
-  }, 1000);
-
-  try {
-    const result = await postJSON('/api/analyze-text', { text });
-    draft = {
-      name: result.dish || 'Meal',
-      items: result.items.map((i) => ({ ...i })),
-      pendingImage: null,
-      model: result.model,
-      raw: result.raw,
-      source: 'text',
-    };
-    $('meal-name').value = draft.name;
-    $('preview').classList.add('hidden');
 
     const notes = $('model-notes');
     if (result.notes) {
