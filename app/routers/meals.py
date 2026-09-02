@@ -11,7 +11,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from app import config
 from app.db import get_conn
 from app.deps import get_profile_id
-from app.models import MealIn, MealItemIn, MealUpdate
+from app.models import MealIn, MealItemIn, MealUpdate, TextAnalysisIn
 from app.services import images, vision
 
 router = APIRouter(prefix="/api", tags=["meals"])
@@ -39,6 +39,24 @@ async def analyze(image: UploadFile = File(...), model: str | None = Form(defaul
         )
 
     result["pending_image"] = images.save_pending(img)
+    return result
+
+
+@router.post("/analyze-text")
+async def analyze_text(payload: TextAnalysisIn):
+    """Estimate macros from a natural language meal description."""
+    try:
+        result = await vision.analyze_meal_text(payload.text, model=payload.model)
+    except vision.VisionError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    if not result["items"]:
+        raise HTTPException(
+            status_code=422,
+            detail="The model could not identify any food items in your description. Please try describing your meal in more detail.",
+        )
+
+    result["pending_image"] = None
     return result
 
 

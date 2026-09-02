@@ -59,6 +59,28 @@ Rules:
 - Prefer a realistic central estimate over a cautious low one. Restaurant and takeaway portions run larger than home-cooked equivalents.
 - Never refuse, never ask a question, never return an empty item list. If the photo is unclear, give your best estimate with confidence "low"."""
 
+TEXT_SYSTEM_PROMPT = """You are a nutrition estimation engine. You receive a natural language description of a meal or food intake and return structured macronutrient data. You output JSON only.
+
+Follow this procedure for every meal description:
+
+1. IDENTIFY each distinct edible component mentioned or implied (e.g. "cheeseburger with bacon and fries" -> burger bun, beef patty, cheddar cheese, bacon strips, french fries). Include condiments, butter, cooking oil, sauces, and milk/sugar in beverages.
+
+2. ESTIMATE PORTIONS & MASS (grams):
+- If quantities, counts, or measurements are given (e.g. "2 eggs", "1 cup rice", "150g salmon", "1 can coke", "large iced latte"), convert them accurately to mass in grams.
+- If portions are NOT specified (e.g. "bowl of chili", "slice of pizza", "chicken breast with broccoli", "protein shake"), GUESS realistic, standard typical portion sizes (e.g. 1 standard slice pizza ~105g, 1 cooked chicken breast ~170g, 1 standard bowl chili ~300g, 1 scoop whey ~30g in 250ml milk/water) and clearly state your assumed standard serving in `basis`.
+
+3. DERIVE MACROS from mass using nutritional values for the food as prepared.
+
+4. CHECK ARITHMETIC: For each item, protein_g*4 + carbs_g*4 + fat_g*9 must land within 10% of its `calories`. If not, correct the numbers.
+
+Rules:
+- `dish` is a short, descriptive title for the overall meal (e.g. "Scrambled Eggs with Sourdough Toast & Latte").
+- `grams` is the estimated edible mass for that component in grams.
+- `basis` names the portion calculation or standard serving assumption, e.g. "assumed standard 1 cup cooked (~195g)" or "stated 2 large eggs (~100g)".
+- `notes` is for assumptions or suggested adjustments, e.g. "Assumed standard medium portion with whole milk".
+- Set `confidence` to "high" when quantities were specified, "medium" for standard recognizable dishes, or "low" for ambiguous items.
+- Never refuse, never ask questions, never output empty items. Always return valid JSON matching the schema."""
+
 USER_PROMPT = (
     "Estimate the macronutrients in this meal. Break it into separate items, "
     "state your size reference in `basis` for each, and return JSON matching the schema."
@@ -69,24 +91,14 @@ class VisionError(RuntimeError):
     """Ollama was unreachable, timed out, or returned something unusable."""
 
 
-async def analyze_meal(image_b64: str, model: str | None = None) -> dict[str, Any]:
-    """Send a base64 JPEG to Ollama and return the parsed, validated estimate."""
-    model = model or config.VISION_MODEL
+async def _call_ollama(messages: list[dict[str, Any]], model: str) -> dict[str, Any]:
     payload = {
         "model": model,
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": USER_PROMPT, "images": [image_b64]},
-        ],
+        "messages": messages,
         "stream": False,
         "format": NUTRITION_SCHEMA,
-        # Thinking models (gemma4, deepseek-r1, qwen3...) otherwise spend the whole
-        # token budget in `message.thinking` and return an empty `content`. The
-        # schema already forces the structure, so the reasoning pass buys nothing.
         "think": False,
         "options": {
-            # Low but non-zero: greedy decoding makes this model class repeat a
-            # single memorised portion size across visibly different photos.
             "temperature": 0.2,
             "num_predict": 1500,
         },
@@ -96,7 +108,6 @@ async def analyze_meal(image_b64: str, model: str | None = None) -> dict[str, An
         async with httpx.AsyncClient(timeout=config.OLLAMA_TIMEOUT) as client:
             resp = await client.post(f"{config.OLLAMA_URL}/api/chat", json=payload)
             if resp.status_code == 400 and "think" in resp.text.lower():
-                # Model has no thinking mode and rejects the field outright.
                 payload.pop("think")
                 resp = await client.post(f"{config.OLLAMA_URL}/api/chat", json=payload)
     except httpx.TimeoutException as exc:
@@ -123,22 +134,39 @@ async def analyze_meal(image_b64: str, model: str | None = None) -> dict[str, An
                 f"'{model}' spent its whole token budget reasoning and returned no answer. "
                 "Ollama ignored think=false; upgrade Ollama or pick a non-thinking model."
             )
-        raise VisionError(
-            f"'{model}' returned an empty response. Confirm it is vision-capable "
-            "(GET /api/health lists which installed models can see images)."
-        )
+        raise VisionError(f"'{model}' returned an empty response.")
 
     try:
         data = json.loads(content)
     except json.JSONDecodeError as exc:
         if truncated:
             raise VisionError(
-                f"'{model}' hit the token limit mid-JSON, so the estimate was cut off. "
-                "This usually means the photo has a very large number of items."
+                f"'{model}' hit the token limit mid-JSON, so the estimate was cut off."
             ) from exc
         raise VisionError(f"Model output was not valid JSON: {content[:200]}") from exc
 
     return normalize(data, model=model, raw=content)
+
+
+async def analyze_meal(image_b64: str, model: str | None = None) -> dict[str, Any]:
+    """Send a base64 JPEG to Ollama and return the parsed, validated estimate."""
+    model = model or config.VISION_MODEL
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": USER_PROMPT, "images": [image_b64]},
+    ]
+    return await _call_ollama(messages, model)
+
+
+async def analyze_meal_text(description: str, model: str | None = None) -> dict[str, Any]:
+    """Send a natural language meal description to Ollama and return structured macros."""
+    model = model or config.VISION_MODEL
+    user_content = f"Estimate the macronutrients for this meal description:\n\"{description.strip()}\"\nBreak it into items and guess standard serving sizes if not specified."
+    messages = [
+        {"role": "system", "content": TEXT_SYSTEM_PROMPT},
+        {"role": "user", "content": user_content},
+    ]
+    return await _call_ollama(messages, model)
 
 
 def _num(value: Any, default: float = 0.0) -> float:

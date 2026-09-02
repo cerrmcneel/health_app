@@ -85,6 +85,56 @@ async function analyze(file) {
   }
 }
 
+// --- natural language text intake ---
+$('text-intake-form')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const text = $('meal-description').value.trim();
+  if (!text) return;
+  analyzeText(text);
+});
+
+async function analyzeText(text) {
+  show('step-loading');
+  $('loading-text').textContent = 'Estimating macros with AI…';
+
+  const started = Date.now();
+  const tick = setInterval(() => {
+    $('loading-sub').textContent = `${Math.round((Date.now() - started) / 1000)}s elapsed`;
+  }, 1000);
+
+  try {
+    const result = await postJSON('/api/analyze-text', { text });
+    draft = {
+      name: result.dish || 'Meal',
+      items: result.items.map((i) => ({ ...i })),
+      pendingImage: null,
+      model: result.model,
+      raw: result.raw,
+      source: 'text',
+    };
+    $('meal-name').value = draft.name;
+    $('preview').classList.add('hidden');
+
+    const notes = $('model-notes');
+    if (result.notes) {
+      notes.className = 'banner';
+      notes.innerHTML = `<b>AI Estimate:</b> ${esc(result.notes)}`;
+      notes.classList.remove('hidden');
+    } else {
+      notes.classList.add('hidden');
+    }
+
+    renderItems();
+    show('step-review');
+  } catch (err) {
+    toast(err.message, true);
+    show('step-capture');
+  } finally {
+    clearInterval(tick);
+    $('loading-sub').textContent = 'A cold model load can take a minute the first time.';
+  }
+}
+
 // --- editable items ---
 const blankItem = () => ({
   name: '', grams: 0, calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0,

@@ -9,6 +9,11 @@ MealType = Literal["breakfast", "lunch", "dinner", "snack", "other"]
 Pose = Literal["front", "profile"]
 
 
+class TextAnalysisIn(BaseModel):
+    text: str = Field(min_length=2, max_length=2000)
+    model: str | None = None
+
+
 class MealItemIn(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     grams: float = Field(default=0, ge=0, le=10000)
@@ -25,7 +30,7 @@ class MealIn(BaseModel):
     meal_type: MealType = "other"
     items: list[MealItemIn] = Field(min_length=1)
     day: date | None = None          # defaults to today in the configured TZ
-    source: Literal["photo", "manual"] = "manual"
+    source: Literal["photo", "manual", "text"] = "manual"
     notes: str = Field(default="", max_length=500)
     pending_image: str | None = None  # token from POST /api/analyze
     model: str | None = None

@@ -22,9 +22,9 @@
 
   <div id="health" class="banner hidden"></div>
 
-  <!-- STEP 1: capture or pick a photo -->
+  <!-- STEP 1: capture, describe, or enter manually -->
   <section class="card" id="step-capture">
-    <h2>Photo</h2>
+    <h2>Photo (AI Vision)</h2>
     <!-- `capture="environment"` opens the rear camera directly on mobile; on
          desktop the same input falls back to a normal file picker. -->
     <input type="file" id="file" accept="image/*" capture="environment" class="hidden">
@@ -33,7 +33,18 @@
       <button class="btn-primary" id="btn-camera">Take photo</button>
       <button id="btn-library">Choose file</button>
     </div>
-    <button class="full" id="btn-manual" style="margin-top:10px">Enter manually instead</button>
+
+    <hr style="border:0;border-top:1px solid var(--line);margin:18px 0 14px">
+
+    <h2>Describe with AI</h2>
+    <form id="text-intake-form">
+      <textarea id="meal-description" rows="3" placeholder="e.g. 2 scrambled eggs with cheese, 2 slices sourdough toast with butter, and a large iced latte" style="width:100%;margin-bottom:10px;resize:vertical;font-family:inherit" required></textarea>
+      <button type="submit" class="btn btn-primary full" id="btn-analyze-text">&#x2728; Estimate Macros with AI</button>
+    </form>
+
+    <hr style="border:0;border-top:1px solid var(--line);margin:18px 0 14px">
+
+    <button class="full" id="btn-manual">Enter items manually without AI</button>
   </section>
 
   <!-- STEP 2: analysing -->
