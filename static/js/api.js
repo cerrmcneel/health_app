@@ -148,6 +148,23 @@ export async function checkHealth(containerId = 'health') {
   }
 }
 
+/**
+ * Infer meal type from time of day tailored to Spanish schedules:
+ * - Breakfast: 06:00 - 12:30
+ * - Lunch: 12:30 - 16:00 (covers 13:00 - 15:30)
+ * - Snack / Merienda: 16:00 - 20:00
+ * - Dinner: 20:00 - 24:00 (covers 20:00 - 23:00+)
+ * - Late-night: 00:00 - 06:00 -> snack
+ */
+export function inferMealType(date = new Date()) {
+  const h = date.getHours() + date.getMinutes() / 60;
+  if (h >= 6.0 && h < 12.5) return 'breakfast';
+  if (h >= 12.5 && h < 16.0) return 'lunch';
+  if (h >= 16.0 && h < 20.0) return 'snack';
+  if (h >= 20.0 && h <= 24.0) return 'dinner';
+  return 'snack';
+}
+
 document.addEventListener('DOMContentLoaded', markNav);
 
 // Registering the worker is what makes the app installable to the home screen.

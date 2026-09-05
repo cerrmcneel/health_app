@@ -1,4 +1,4 @@
-import { postForm, postJSON, fmt, round, toast, esc, checkHealth, prettyDate, todayISO } from './api.js';
+import { postForm, postJSON, fmt, round, toast, esc, checkHealth, prettyDate, todayISO, inferMealType } from './api.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -49,6 +49,7 @@ $('btn-manual')?.addEventListener('click', () => {
   $('preview').classList.add('hidden');
   $('model-notes').classList.add('hidden');
   $('meal-name').value = '';
+  if ($('meal-type')) $('meal-type').value = inferMealType();
   renderItems();
   show('step-review');
 });
@@ -92,6 +93,7 @@ async function runAnalysis(file, text) {
       source: result.source || (file ? 'photo' : 'text'),
     };
     $('meal-name').value = draft.name;
+    if ($('meal-type')) $('meal-type').value = inferMealType();
 
     if (file && previewURL) {
       $('preview').src = previewURL;

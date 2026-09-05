@@ -90,6 +90,27 @@ async def analyze_text(payload: TextAnalysisIn):
     return result
 
 
+def infer_meal_type(dt: datetime | None = None) -> str:
+    """Infer meal slot from time of day tailored to Spanish schedules:
+    - Breakfast: 06:00 - 12:30
+    - Lunch (comida): 12:30 - 16:00 (covers Spain's 13:00 - 15:30)
+    - Merienda / Snack: 16:00 - 20:00
+    - Dinner (cena): 20:00 - 24:00 (covers Spain's 20:00 - 23:00+)
+    - Late-night: 00:00 - 06:00 -> snack
+    """
+    now = dt or config.now()
+    h = now.hour + now.minute / 60.0
+    if 6.0 <= h < 12.5:
+        return "breakfast"
+    elif 12.5 <= h < 16.0:
+        return "lunch"
+    elif 16.0 <= h < 20.0:
+        return "snack"
+    elif 20.0 <= h <= 24.0:
+        return "dinner"
+    return "snack"
+
+
 @router.post("/meals", status_code=201)
 def create_meal(request: Request, meal: MealIn):
     """Commit a reviewed meal, claiming its pending photo if one was supplied."""
@@ -100,13 +121,17 @@ def create_meal(request: Request, meal: MealIn):
     if meal.pending_image:
         image_path = images.commit_pending(meal.pending_image, when)
 
+    meal_type = meal.meal_type
+    if not meal_type or meal_type == "other":
+        meal_type = infer_meal_type(when)
+
     with get_conn() as conn:
         profile_id = get_profile_id(request, conn)
         cur = conn.execute(
             """INSERT INTO meals (profile_id, day, logged_at, name, meal_type, source,
                                   image_path, model, notes, raw_json)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (profile_id, day, when.isoformat(), meal.name, meal.meal_type, meal.source,
+            (profile_id, day, when.isoformat(), meal.name, meal_type, meal.source,
              image_path, meal.model, meal.notes, meal.raw_json),
         )
         meal_id = cur.lastrowid
@@ -151,7 +176,7 @@ def duplicate_meal(request: Request, meal_id: int):
             """INSERT INTO meals (profile_id, day, logged_at, name, meal_type, source,
                                   image_path, model, notes, raw_json)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (profile_id, today, when.isoformat(), src["name"], src["meal_type"], "manual",
+            (profile_id, today, when.isoformat(), src["name"], infer_meal_type(when), "manual",
              src["image_path"], src["model"], src["notes"], None),
         )
         new_id = cur.lastrowid

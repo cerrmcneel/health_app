@@ -22,7 +22,10 @@ param(
     [string]$Trigger = 'AtLogon',
     [int]$DelaySeconds = 20,
     # How often the watchdog re-checks that the app is still running.
-    [int]$WatchdogMinutes = 5
+    [int]$WatchdogMinutes = 5,
+    # Also register a monthly task to renew the Tailscale/Let's Encrypt cert.
+    [switch]$WithCertRenewal,
+    [string]$CertDomain = 'datainmind.taila2c133.ts.net'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -130,3 +133,34 @@ Write-Host ""
 Write-Host "Verify with:  Invoke-RestMethod http://localhost:8010/api/health | Format-List"
 Write-Host "Stop with  :  Stop-ScheduledTask -TaskName $TaskName"
 Write-Host "Remove with:  powershell -ExecutionPolicy Bypass -File install_autostart.ps1 -Uninstall"
+
+# --- optional certificate renewal task ------------------------------------
+if ($WithCertRenewal) {
+    $RenewTask = 'FitnessTrackerCertRenew'
+    $renewScript = Join-Path $ProjectDir 'renew_cert.ps1'
+    if (-not (Test-Path $renewScript)) { throw "renew_cert.ps1 not found in $ProjectDir" }
+
+    $rAction = New-ScheduledTaskAction -Execute 'powershell.exe' `
+        -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$renewScript`" -Domain $CertDomain" `
+        -WorkingDirectory $ProjectDir
+    # Weekly, not monthly: the script is a no-op until the cert is inside its
+    # renewal window, and a weekly cadence means a missed run (machine off) does
+    # not eat into the margin before the 90-day expiry.
+    $rTrigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Sunday -At 3am
+    $rSettings = New-ScheduledTaskSettingsSet -StartWhenAvailable `
+        -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
+        -ExecutionTimeLimit (New-TimeSpan -Minutes 15)
+    $rPrincipal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive
+
+    if (Get-ScheduledTask -TaskName $RenewTask -ErrorAction SilentlyContinue) {
+        Unregister-ScheduledTask -TaskName $RenewTask -Confirm:$false
+    }
+    Register-ScheduledTask -TaskName $RenewTask -Action $rAction -Trigger $rTrigger `
+        -Settings $rSettings -Principal $rPrincipal `
+        -Description "Renew the Tailscale certificate for $CertDomain" | Out-Null
+
+    Write-Host ""
+    Write-Host "Registered '$RenewTask' (Sundays 03:00, renews within 30 days of expiry)." -ForegroundColor Green
+    Write-Host "  log: $(Join-Path $ProjectDir 'logs\cert-renew.log')"
+    Write-Host "  dry run: powershell -ExecutionPolicy Bypass -File renew_cert.ps1"
+}
