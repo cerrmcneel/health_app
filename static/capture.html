@@ -50,7 +50,14 @@
 
   <input type="file" id="file-upload" accept="image/*" class="hidden">
 
-  <!-- Countdown / status overlay -->
+  <!-- Transparent countdown overlay for ghost alignment during timer -->
+  <div class="cam-countdown hidden" id="countdown-overlay">
+    <div class="countdown-badge">
+      <span id="countdown-num">3</span>
+    </div>
+  </div>
+
+  <!-- Terminal status overlay (finish / error) -->
   <div class="cam-msg hidden" id="msg">
     <div class="inner" id="msg-inner"></div>
   </div>

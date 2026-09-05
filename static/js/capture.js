@@ -123,17 +123,29 @@ function countdown(seconds) {
   return new Promise((resolve) => {
     busy = true;
     let left = seconds;
-    showMsg(`<div style="font-size:76px;font-weight:600" id="tick">${left}</div>`);
+    const overlay = $('countdown-overlay');
+    const num = $('countdown-num');
+
+    if (num) num.textContent = left;
+    overlay?.classList.remove('hidden');
+
     const iv = setInterval(() => {
       left -= 1;
       if (left <= 0) {
         clearInterval(iv);
-        hideMsg();
+        overlay?.classList.add('hidden');
         busy = false;
         resolve();
       } else {
-        const tick = $('tick');
-        if (tick) tick.textContent = left;
+        if (num) {
+          num.textContent = left;
+          const badge = num.parentElement;
+          if (badge) {
+            badge.style.animation = 'none';
+            badge.offsetHeight; // trigger reflow to re-pulse
+            badge.style.animation = '';
+          }
+        }
       }
     }, 1000);
   });
