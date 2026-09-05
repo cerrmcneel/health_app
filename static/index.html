@@ -65,6 +65,11 @@
         <div class="bar"><i id="fat-bar" style="width:0%"></i></div>
       </div>
     </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:12px">
+      <button id="btn-why-balanced" class="meal-btn" style="font-size:12px;display:flex;align-items:center;gap:5px;padding:5px 10px">
+        <span>💡</span> Why is this balanced?
+      </button>
+    </div>
   </section>
 
   <section class="card">
@@ -265,6 +270,64 @@
       </div>
       <button type="submit" class="btn btn-primary full" style="margin-top:12px">Save Changes</button>
     </form>
+  </div>
+</div>
+
+<!-- Nutrition Knowledge & Balance Explainer Modal -->
+<div id="knowledge-modal" class="modal-overlay hidden">
+  <div class="modal-card" style="max-width:560px">
+    <div class="modal-head">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:20px">💡</span>
+        <div>
+          <h3 style="margin:0">Nutrition Science &amp; Balance</h3>
+          <small class="muted" style="font-size:12px">Evidence-based physiological guidelines</small>
+        </div>
+      </div>
+      <button class="modal-close" data-close="knowledge-modal">&times;</button>
+    </div>
+
+    <!-- Active Target Snapshot Summary Pill -->
+    <div id="km-snapshot-pill" class="knowledge-snapshot-pill"></div>
+
+    <!-- Tab / View toggle: 'Why Balanced' vs 'Ask Question' -->
+    <div class="km-tabs">
+      <button class="km-tab active" id="km-tab-rationale">🎯 Target Rationale</button>
+      <button class="km-tab" id="km-tab-qa">💬 Ask Question</button>
+    </div>
+
+    <!-- Section 1: Target Rationale -->
+    <div id="km-section-rationale" class="km-section">
+      <div id="km-rationale-loading" class="km-loading hidden">
+        <div class="spinner"></div>
+        <span>Analyzing targets against sports nutrition science...</span>
+      </div>
+      <div id="km-rationale-content" class="km-markdown"></div>
+      <div id="km-rationale-sources" class="km-sources"></div>
+    </div>
+
+    <!-- Section 2: Interactive Q&A -->
+    <div id="km-section-qa" class="km-section hidden">
+      <div class="km-chips-label">Popular questions:</div>
+      <div class="km-chips">
+        <button class="km-chip" data-q="Why do I need around 2g/kg protein during fat loss?">Why 2g/kg protein?</button>
+        <button class="km-chip" data-q="Can I lower carbohydrates and increase fat without losing muscle?">Can I lower carbs?</button>
+        <button class="km-chip" data-q="Why shouldn't dietary fat drop below 20% of total calories?">Why not zero fat?</button>
+        <button class="km-chip" data-q="How does a 500 kcal deficit work and why not cut faster?">Why 500 kcal deficit?</button>
+      </div>
+
+      <form id="km-qa-form" style="display:flex;gap:8px;margin:14px 0">
+        <input type="text" id="km-qa-input" placeholder="Ask any health or nutrition question..." required style="flex:1">
+        <button type="submit" id="km-qa-submit" class="btn btn-primary" style="flex:none;min-width:70px">Ask</button>
+      </form>
+
+      <div id="km-qa-loading" class="km-loading hidden">
+        <div class="spinner"></div>
+        <span>Consulting knowledge base &amp; local model...</span>
+      </div>
+
+      <div id="km-qa-thread"></div>
+    </div>
   </div>
 </div>
 

@@ -531,6 +531,180 @@ $('targets-form')?.addEventListener('submit', async (e) => {
   }
 });
 
+// --- Nutrition Science & Explainer Modal ---
+let cachedExplanation = null;
+let cachedExplanationKey = null;
+
+function renderSimpleMarkdown(md) {
+  if (!md) return '';
+  const lines = md.split('\n');
+  let html = '';
+  let inList = false;
+
+  for (let line of lines) {
+    line = line.trim();
+    if (!line) {
+      if (inList) { html += '</ul>'; inList = false; }
+      continue;
+    }
+
+    if (line.startsWith('#### ')) {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += `<h4>${esc(line.slice(5))}</h4>`;
+    } else if (line.startsWith('### ')) {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += `<h3>${esc(line.slice(4))}</h3>`;
+    } else if (line.startsWith('- ') || line.startsWith('* ')) {
+      if (!inList) { html += '<ul>'; inList = true; }
+      const itemText = line.slice(2);
+      html += `<li>${formatInlineMd(itemText)}</li>`;
+    } else {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += `<p>${formatInlineMd(line)}</p>`;
+    }
+  }
+  if (inList) html += '</ul>';
+  return html;
+}
+
+function formatInlineMd(text) {
+  let safe = esc(text);
+  // Bold: **text**
+  safe = safe.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  // Inline code / metric: `code`
+  safe = safe.replace(/`([^`]+)`/g, '<code style="background:rgba(255,255,255,0.08);padding:1px 4px;border-radius:4px">$1</code>');
+  return safe;
+}
+
+async function openKnowledgeModal() {
+  openModal('knowledge-modal');
+
+  // Render snapshot pill
+  const pill = $('km-snapshot-pill');
+  if (pill && currentProfile) {
+    const cp = currentProfile;
+    const wVal = $('weight-val')?.textContent;
+    const hasWeight = wVal && wVal !== '—' && !isNaN(Number(wVal));
+    const gKg = hasWeight ? (Number(cp.protein_target) / Number(wVal)).toFixed(2) : null;
+
+    pill.innerHTML = `
+      <span>Target: <b>${fmt(cp.calorie_target)} kcal</b></span>
+      <span>&middot;</span>
+      <span>Protein: <b>${fmt(cp.protein_target)}g</b> ${gKg ? `<small>(${gKg} g/kg)</small>` : ''}</span>
+      <span>&middot;</span>
+      <span>Carbs: <b>${fmt(cp.carbs_target)}g</b></span>
+      <span>&middot;</span>
+      <span>Fat: <b>${fmt(cp.fat_target)}g</b></span>
+      ${hasWeight ? `<span>&middot;</span><span>Weight: <b>${wVal} kg</b></span>` : ''}
+    `;
+  }
+
+  // Load rationale if not already cached for current profile & day
+  const key = `${currentProfile?.id || 1}_${day}`;
+  if (cachedExplanationKey !== key || !cachedExplanation) {
+    await fetchBalanceExplanation();
+  }
+}
+
+async function fetchBalanceExplanation() {
+  const loading = $('km-rationale-loading');
+  const content = $('km-rationale-content');
+  const sources = $('km-rationale-sources');
+
+  loading?.classList.remove('hidden');
+  if (content) content.innerHTML = '';
+  if (sources) sources.innerHTML = '';
+
+  try {
+    const data = await getJSON(`/api/knowledge/balance-explanation?day=${day}`);
+    cachedExplanation = data;
+    cachedExplanationKey = `${currentProfile?.id || 1}_${day}`;
+
+    if (content) {
+      content.innerHTML = renderSimpleMarkdown(data.explanation);
+    }
+    if (sources && data.sources?.length) {
+      sources.innerHTML = `<span style="font-size:11px;color:var(--muted);width:100%">Consulted Scientific Sources:</span>`
+        + data.sources.map(s => `<span class="km-source-tag">${esc(s)}</span>`).join('');
+    }
+  } catch (err) {
+    if (content) {
+      content.innerHTML = `<p style="color:var(--danger)">Failed to load balance explanation: ${esc(err.message)}</p>`;
+    }
+  } finally {
+    loading?.classList.add('hidden');
+  }
+}
+
+// Tab Switching
+$('km-tab-rationale')?.addEventListener('click', () => {
+  $('km-tab-rationale').classList.add('active');
+  $('km-tab-qa').classList.remove('active');
+  $('km-section-rationale').classList.remove('hidden');
+  $('km-section-qa').classList.add('hidden');
+});
+
+$('km-tab-qa')?.addEventListener('click', () => {
+  $('km-tab-qa').classList.add('active');
+  $('km-tab-rationale').classList.remove('active');
+  $('km-section-qa').classList.remove('hidden');
+  $('km-section-rationale').classList.add('hidden');
+  $('km-qa-input')?.focus();
+});
+
+// Trigger modal button
+$('btn-why-balanced')?.addEventListener('click', openKnowledgeModal);
+
+// Quick question chips
+document.querySelectorAll('.km-chip').forEach((chip) => {
+  chip.addEventListener('click', () => {
+    const q = chip.dataset.q;
+    if ($('km-qa-input')) $('km-qa-input').value = q;
+    submitQuestion(q);
+  });
+});
+
+// Q&A Submission
+$('km-qa-form')?.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const input = $('km-qa-input');
+  const q = input.value.trim();
+  if (!q) return;
+  submitQuestion(q);
+  input.value = '';
+});
+
+async function submitQuestion(question) {
+  const loading = $('km-qa-loading');
+  const submitBtn = $('km-qa-submit');
+  const thread = $('km-qa-thread');
+
+  loading?.classList.remove('hidden');
+  if (submitBtn) submitBtn.disabled = true;
+
+  try {
+    const res = await postJSON('/api/knowledge/ask', { question, day });
+    const itemEl = document.createElement('div');
+    itemEl.className = 'km-qa-item';
+    itemEl.innerHTML = `
+      <div class="km-qa-q">${esc(question)}</div>
+      <div class="km-qa-a">${renderSimpleMarkdown(res.answer)}</div>
+      ${res.sources?.length ? `
+        <div class="km-qa-meta">
+          <span>Sources: ${res.sources.map(s => esc(s)).join(', ')}</span>
+          ${res.model ? `<span>&middot; ${esc(res.model)}</span>` : ''}
+        </div>
+      ` : ''}
+    `;
+    thread.prepend(itemEl);
+  } catch (err) {
+    toast(`Q&A failed: ${err.message}`, true);
+  } finally {
+    loading?.classList.add('hidden');
+    if (submitBtn) submitBtn.disabled = false;
+  }
+}
+
 // Navigation
 $('prev')?.addEventListener('click', () => { day = shiftDay(day, -1); loadDay(); });
 $('next')?.addEventListener('click', () => {
@@ -551,4 +725,5 @@ document.addEventListener('visibilitychange', () => {
     toast(err.message, true);
   }
 })();
+
 

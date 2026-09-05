@@ -378,3 +378,81 @@ body.cam { padding: 0; background: #000; overflow: hidden; }
 }
 .meal-btn:hover { color: var(--text); border-color: var(--muted); }
 
+/* --- nutrition knowledge & explainer modal --- */
+.knowledge-snapshot-pill {
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: 10px; padding: 9px 12px; margin-bottom: 12px;
+  font-size: 12px; color: var(--text); display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+}
+.knowledge-snapshot-pill b { color: var(--accent); }
+.km-tabs {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+  background: var(--surface-2); padding: 3px; border-radius: 10px;
+  margin-bottom: 14px; border: 1px solid var(--line);
+}
+.km-tab {
+  background: transparent; border: 0; padding: 8px 12px;
+  font-size: 13px; font-weight: 500; color: var(--muted);
+  border-radius: 7px; cursor: pointer; min-height: 0;
+}
+.km-tab.active { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+
+.km-section { min-height: 120px; }
+.km-loading {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 12px; padding: 28px 0; color: var(--muted); font-size: 13px; text-align: center;
+}
+.spinner {
+  width: 24px; height: 24px; border: 3px solid var(--line);
+  border-top-color: var(--accent); border-radius: 50%;
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.km-markdown {
+  font-size: 13.5px; line-height: 1.6; color: var(--text);
+}
+.km-markdown h3 { font-size: 15px; margin: 12px 0 6px; color: #fff; }
+.km-markdown h4 { font-size: 14px; margin: 12px 0 4px; color: var(--accent); }
+.km-markdown p { margin: 6px 0 10px; }
+.km-markdown ul { margin: 4px 0 10px 18px; padding: 0; }
+.km-markdown li { margin-bottom: 4px; }
+.km-markdown strong, .km-markdown b { color: #fff; }
+
+.km-sources {
+  margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line);
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+}
+.km-source-tag {
+  font-size: 11px; padding: 3px 8px; border-radius: 99px;
+  background: var(--surface-2); border: 1px solid var(--line); color: var(--muted);
+}
+
+.km-chips-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.km-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.km-chip {
+  background: var(--surface-2); border: 1px solid var(--line);
+  color: var(--text); font-size: 11.5px; padding: 5px 9px;
+  border-radius: 8px; cursor: pointer; min-height: 0;
+  transition: border-color .15s ease, background .15s ease;
+}
+.km-chip:hover { border-color: var(--accent); background: var(--surface); }
+
+.km-qa-thread { display: flex; flex-direction: column; gap: 12px; margin-top: 10px; }
+.km-qa-item {
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: 12px; padding: 12px;
+}
+.km-qa-q {
+  font-size: 13px; font-weight: 600; color: #fff; margin-bottom: 8px;
+  display: flex; align-items: baseline; gap: 6px;
+}
+.km-qa-q::before { content: 'Q:'; color: var(--accent); font-weight: 700; }
+.km-qa-a { font-size: 13px; line-height: 1.55; color: var(--text); }
+.km-qa-a p { margin: 6px 0; }
+.km-qa-a ul { margin: 4px 0 6px 18px; padding: 0; }
+.km-qa-meta {
+  margin-top: 8px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,.07);
+  display: flex; gap: 6px; flex-wrap: wrap; font-size: 11px; color: var(--muted);
+}
+

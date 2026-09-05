@@ -80,6 +80,14 @@ CREATE TABLE IF NOT EXISTS settings (
     fat_target     REAL NOT NULL DEFAULT 70
 );
 INSERT OR IGNORE INTO settings (id) VALUES (1);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_docs USING fts5(
+    slug UNINDEXED,
+    title,
+    section,
+    content,
+    tags
+);
 """
 
 AFTER_MIGRATE_SCHEMA = """
@@ -211,5 +219,11 @@ def init_db() -> None:
         conn.executescript(SCHEMA)
         _migrate(conn)
         conn.executescript(AFTER_MIGRATE_SCHEMA)
+        try:
+            from app.services import knowledge
+            knowledge.index_knowledge(conn)
+        except Exception as exc:
+            import logging
+            logging.getLogger("tracker").warning("knowledge indexing failed: %s", exc)
 
 
