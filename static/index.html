@@ -189,12 +189,73 @@
   </div>
 </div>
 
+<!-- Edit Profile Modal -->
+<div id="edit-profile-modal" class="modal-overlay hidden">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3>Edit Profile</h3>
+      <button class="modal-close" data-close="edit-profile-modal">&times;</button>
+    </div>
+    <form id="edit-profile-form">
+      <input type="hidden" id="edit-p-id">
+      <div class="field">
+        <label for="edit-p-name">Profile Name</label>
+        <input type="text" id="edit-p-name" placeholder="e.g. Eric" maxlength="50" required>
+        <small class="muted" style="font-size:11px;margin-top:4px;display:block">Change "Default" to your personal name. All your existing data, meals, photos, and history stay intact.</small>
+      </div>
+      <div class="field">
+        <label>Avatar Color</label>
+        <div class="color-picker" id="edit-p-colors">
+          <div class="color-opt selected" data-color="#3b82f6" style="background:#3b82f6"></div>
+          <div class="color-opt" data-color="#10b981" style="background:#10b981"></div>
+          <div class="color-opt" data-color="#f59e0b" style="background:#f59e0b"></div>
+          <div class="color-opt" data-color="#ec4899" style="background:#ec4899"></div>
+          <div class="color-opt" data-color="#8b5cf6" style="background:#8b5cf6"></div>
+          <div class="color-opt" data-color="#06b6d4" style="background:#06b6d4"></div>
+          <div class="color-opt" data-color="#ef4444" style="background:#ef4444"></div>
+          <div class="color-opt" data-color="#84cc16" style="background:#84cc16"></div>
+        </div>
+      </div>
+      <div class="field" style="margin-top:10px">
+        <label for="edit-p-cal">Daily Calorie Target (kcal)</label>
+        <input type="number" id="edit-p-cal" step="10" min="500" max="20000" required>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;margin-bottom:12px">
+        <div>
+          <label for="edit-p-pro" style="font-size:11px">Protein (g)</label>
+          <input type="number" id="edit-p-pro" min="0" max="1000" required>
+        </div>
+        <div>
+          <label for="edit-p-car" style="font-size:11px">Carbs (g)</label>
+          <input type="number" id="edit-p-car" min="0" max="1000" required>
+        </div>
+        <div>
+          <label for="edit-p-fat" style="font-size:11px">Fat (g)</label>
+          <input type="number" id="edit-p-fat" min="0" max="500" required>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary full" style="margin-top:8px">Save Profile</button>
+    </form>
+  </div>
+</div>
+
 <!-- Calorie Intake & Goal Calculator Modal -->
 <div id="targets-modal" class="modal-overlay hidden">
   <div class="modal-card">
     <div class="modal-head">
-      <h3>Calorie & Macro Goals</h3>
+      <h3>Calorie &amp; Macro Goals</h3>
       <button class="modal-close" data-close="targets-modal">&times;</button>
+    </div>
+
+    <!-- Active Profile Info Bar -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding:9px 12px;background:var(--surface-2);border-radius:10px;border:1px solid var(--line)">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="avatar-circle" id="targets-profile-avatar" style="width:22px;height:22px;font-size:11px">D</span>
+        <span style="font-size:13px;color:var(--text)">Profile: <b id="targets-profile-name">Default</b></span>
+      </div>
+      <button type="button" id="btn-edit-profile-from-targets" class="meal-btn" style="font-size:11.5px;padding:3px 8px">
+        ✏️ Rename &amp; Color
+      </button>
     </div>
 
     <!-- Quick Goal Presets -->

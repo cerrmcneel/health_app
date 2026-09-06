@@ -61,17 +61,22 @@ function renderProfileList() {
           ${esc(p.name.charAt(0).toUpperCase())}
         </span>
         <div class="p-info">
-          <b>${esc(p.name)} ${p.is_default ? '<small style="color:var(--muted)">(Default)</small>' : ''}</b>
+          <b>${esc(p.name)} ${p.is_default ? '<small style="color:var(--muted)">(Default)</small>' : ''} ${isActive ? '<small style="color:var(--accent)">&bull; Active</small>' : ''}</b>
           <small>${fmt(p.calorie_target)} kcal &middot; P:${fmt(p.protein_target)}g C:${fmt(p.carbs_target)}g F:${fmt(p.fat_target)}g</small>
         </div>
-        ${!p.is_default && currentProfilesList.length > 1 ? `<button class="del" data-del-profile="${p.id}" title="Delete profile">&times;</button>` : ''}
+        <div style="display:flex;gap:6px;align-items:center">
+          <button type="button" class="meal-btn edit-profile-btn" data-edit-pid="${p.id}" title="Edit profile name & targets" style="padding:4px 8px;font-size:11px">
+            ✏️ Edit
+          </button>
+          ${!p.is_default && currentProfilesList.length > 1 ? `<button type="button" class="del" data-del-profile="${p.id}" title="Delete profile">&times;</button>` : ''}
+        </div>
       </div>
     `;
   }).join('');
 
   container.querySelectorAll('.profile-item').forEach((el) => {
     el.addEventListener('click', async (e) => {
-      if (e.target.closest('[data-del-profile]')) return;
+      if (e.target.closest('.edit-profile-btn') || e.target.closest('[data-del-profile]')) return;
       const pid = el.dataset.pid;
       setActiveProfileId(pid);
       closeModal('profile-modal');
@@ -79,6 +84,14 @@ function renderProfileList() {
       await loadDay();
       await Promise.all([loadChart(), loadPhotos(), loadWeight()]);
       toast('Switched profile');
+    });
+  });
+
+  container.querySelectorAll('.edit-profile-btn').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeModal('profile-modal');
+      openEditProfileModal(btn.dataset.editPid);
     });
   });
 
@@ -100,6 +113,64 @@ function renderProfileList() {
     });
   });
 }
+
+// Edit Profile Modal
+let editAvatarColor = '#3b82f6';
+
+function openEditProfileModal(pid) {
+  const p = currentProfilesList.find(x => String(x.id) === String(pid)) || currentProfile;
+  if (!p) return;
+
+  $('edit-p-id').value = p.id;
+  $('edit-p-name').value = p.name;
+  $('edit-p-cal').value = Math.round(p.calorie_target);
+  $('edit-p-pro').value = Math.round(p.protein_target);
+  $('edit-p-car').value = Math.round(p.carbs_target);
+  $('edit-p-fat').value = Math.round(p.fat_target);
+
+  editAvatarColor = p.avatar_color || '#3b82f6';
+  $('edit-p-colors')?.querySelectorAll('.color-opt').forEach((opt) => {
+    const isSelected = opt.dataset.color.toLowerCase() === editAvatarColor.toLowerCase();
+    opt.classList.toggle('selected', isSelected);
+  });
+
+  openModal('edit-profile-modal');
+}
+
+$('edit-p-colors')?.querySelectorAll('.color-opt').forEach((opt) => {
+  opt.addEventListener('click', () => {
+    $('edit-p-colors').querySelectorAll('.color-opt').forEach(o => o.classList.remove('selected'));
+    opt.classList.add('selected');
+    editAvatarColor = opt.dataset.color;
+  });
+});
+
+$('edit-profile-form')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const pid = $('edit-p-id').value;
+  const name = $('edit-p-name').value.trim();
+  if (!name) return;
+
+  const payload = {
+    name,
+    avatar_color: editAvatarColor,
+    calorie_target: Number($('edit-p-cal').value) || 2200,
+    protein_target: Number($('edit-p-pro').value) || 160,
+    carbs_target: Number($('edit-p-car').value) || 220,
+    fat_target: Number($('edit-p-fat').value) || 70,
+  };
+
+  try {
+    const updated = await patchJSON(`/api/profiles/${pid}`, payload);
+    closeModal('edit-profile-modal');
+    toast(`Profile updated: "${updated.name}"`);
+    await loadProfiles();
+    await loadDay();
+    await Promise.all([loadChart(), loadPhotos(), loadWeight()]);
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
 
 // Add Profile Form
 let selectedAvatarColor = '#3b82f6';
@@ -464,9 +535,32 @@ function fillTargetsModal(t) {
   $('modal-t-pro').value = t.protein_target;
   $('modal-t-car').value = t.carbs_target;
   $('modal-t-fat').value = t.fat_target;
+  if ($('targets-profile-name') && currentProfile) {
+    $('targets-profile-name').textContent = currentProfile.name;
+    const av = $('targets-profile-avatar');
+    if (av) {
+      av.textContent = currentProfile.name.charAt(0).toUpperCase();
+      av.style.background = currentProfile.avatar_color || '#3b82f6';
+    }
+  }
 }
 
-$('btn-edit-goals')?.addEventListener('click', () => openModal('targets-modal'));
+$('btn-edit-goals')?.addEventListener('click', () => {
+  if (currentProfile) {
+    fillTargetsModal({
+      calorie_target: currentProfile.calorie_target,
+      protein_target: currentProfile.protein_target,
+      carbs_target: currentProfile.carbs_target,
+      fat_target: currentProfile.fat_target,
+    });
+  }
+  openModal('targets-modal');
+});
+
+$('btn-edit-profile-from-targets')?.addEventListener('click', () => {
+  closeModal('targets-modal');
+  openEditProfileModal(currentProfile?.id);
+});
 
 // Quick Presets
 let currentBaseTDEE = 2200;

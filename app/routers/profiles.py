@@ -83,7 +83,13 @@ def update_profile(profile_id: int, patch: ProfileUpdate):
             if dup:
                 raise HTTPException(status_code=409, detail=f"Profile '{name}' already exists.")
             fields["name"] = name
-            fields["slug"] = slugify(name)
+            base_slug = slugify(name)
+            slug = base_slug
+            counter = 1
+            while conn.execute("SELECT id FROM profiles WHERE slug = ? AND id != ?", (slug, profile_id)).fetchone():
+                counter += 1
+                slug = f"{base_slug}-{counter}"
+            fields["slug"] = slug
 
         if fields:
             assignments = ", ".join(f"{k} = ?" for k in fields)
@@ -91,6 +97,18 @@ def update_profile(profile_id: int, patch: ProfileUpdate):
                 f"UPDATE profiles SET {assignments} WHERE id = ?",
                 (*fields.values(), profile_id),
             )
+            # If default profile targets updated, keep settings table in sync
+            if row["is_default"]:
+                s_map = {
+                    "calorie_target": fields.get("calorie_target"),
+                    "protein_target": fields.get("protein_target"),
+                    "carbs_target": fields.get("carbs_target"),
+                    "fat_target": fields.get("fat_target"),
+                }
+                s_updates = {k: v for k, v in s_map.items() if v is not None}
+                if s_updates:
+                    s_assigns = ", ".join(f"{k} = ?" for k in s_updates)
+                    conn.execute(f"UPDATE settings SET {s_assigns} WHERE id = 1", (*s_updates.values(),))
 
         return dict(conn.execute("SELECT * FROM profiles WHERE id = ?", (profile_id,)).fetchone())
 
