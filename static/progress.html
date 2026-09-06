@@ -45,11 +45,17 @@
         <span id="label-after">&mdash;</span>
       </div>
       <div class="field" style="margin-top:12px">
-        <label for="pick-before">Earlier photo</label>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <label for="pick-before" style="margin-bottom:0">Earlier photo</label>
+          <button type="button" class="btn btn-sm" id="btn-rotate-before" title="Rotate earlier photo 90°" style="font-size:11.5px;padding:2px 8px;background:var(--surface-2);border:1px solid var(--line);border-radius:6px;color:var(--text)">&#8635; Rotate</button>
+        </div>
         <select id="pick-before"></select>
       </div>
       <div class="field">
-        <label for="pick-after">Later photo</label>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <label for="pick-after" style="margin-bottom:0">Later photo</label>
+          <button type="button" class="btn btn-sm" id="btn-rotate-after" title="Rotate later photo 90°" style="font-size:11.5px;padding:2px 8px;background:var(--surface-2);border:1px solid var(--line);border-radius:6px;color:var(--text)">&#8635; Rotate</button>
+        </div>
         <select id="pick-after"></select>
       </div>
     </div>

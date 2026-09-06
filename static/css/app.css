@@ -248,6 +248,47 @@ body.cam { padding: 0; background: #000; overflow: hidden; }
 }
 .cam-msg .inner { max-width: 340px; }
 
+/* --- photo review & retake overlay --- */
+.cam-review {
+  position: absolute; inset: 0; z-index: 15; background: #000;
+  display: flex; flex-direction: column; justify-content: space-between;
+}
+.review-top {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 2;
+  padding: calc(12px + env(safe-area-inset-top)) 14px 12px;
+  background: linear-gradient(rgba(0,0,0,.78), transparent);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.review-top .pose { font-weight: 600; font-size: 16px; color: #fff; }
+.review-top .sub { font-size: 11.5px; color: rgba(255,255,255,.68); }
+.review-preview-wrap {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  overflow: hidden; background: #000;
+}
+.review-img {
+  width: 100%; height: 100%; object-fit: cover;
+  transition: transform .22s cubic-bezier(0.2, 0, 0, 1);
+}
+.review-bottom {
+  position: absolute; bottom: 0; left: 0; right: 0; z-index: 2;
+  padding: 16px 14px calc(20px + env(safe-area-inset-bottom));
+  background: linear-gradient(transparent, rgba(0,0,0,.88) 32%);
+}
+.review-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+.review-btn {
+  width: auto; height: 46px; border-radius: 12px; padding: 0 12px;
+  font-size: 13px; font-weight: 550; display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  background: rgba(255,255,255,.16); backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.22); color: #fff;
+}
+.review-btn:active { background: rgba(255,255,255,.28); transform: scale(.96); }
+.btn-keep {
+  flex: 1; height: 46px; border-radius: 12px; font-size: 14px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center;
+}
+
 /* --- transparent countdown for live ghost alignment --- */
 .cam-countdown {
   position: absolute; inset: 0; z-index: 25; display: flex; align-items: center; justify-content: center;
@@ -277,9 +318,17 @@ body.cam { padding: 0; background: #000; overflow: hidden; }
 /* --- progress gallery --- */
 .gallery { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
 .gallery figure { margin: 0; }
-.gallery img { width: 100%; aspect-ratio: 3/4; object-fit: cover; border-radius: 10px; background: var(--surface-2); display: block; }
-.gallery figcaption { font-size: 11px; color: var(--muted); margin-top: 5px; text-align: center; }
-.compare { position: relative; border-radius: 12px; overflow: hidden; background: #000; aspect-ratio: 3/4; }
+.gallery figcaption {
+  font-size: 11px; color: var(--muted); margin-top: 5px;
+  display: flex; align-items: center; justify-content: space-between; padding: 0 2px;
+}
+.btn-rotate-photo {
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px;
+  color: var(--text); font-size: 13px; width: 26px; height: 24px; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; padding: 0; line-height: 1;
+}
+.btn-rotate-photo:hover { background: var(--line); }
+.btn-rotate-photo:active { transform: scale(0.92); }
 .compare img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .compare img.after { clip-path: inset(0 0 0 var(--split, 50%)); }
 .compare .handle { position: absolute; top: 0; bottom: 0; width: 2px; background: #fff; left: var(--split, 50%); pointer-events: none; }

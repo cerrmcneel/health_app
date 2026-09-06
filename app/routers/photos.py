@@ -140,6 +140,47 @@ def delete_photo(request: Request, photo_id: int):
             pass
 
 
+@router.post("/api/photos/{photo_id}/rotate")
+def rotate_photo(request: Request, photo_id: int):
+    """Rotate an existing progress photo by 90 degrees clockwise."""
+    with get_conn() as conn:
+        profile_id = get_profile_id(request, conn)
+        row = conn.execute(
+            "SELECT * FROM progress_photos WHERE id = ? AND profile_id = ?",
+            (photo_id, profile_id),
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Photo not found.")
+
+        try:
+            target = images.resolve_media(row["path"])
+            if not target.is_file():
+                raise HTTPException(status_code=404, detail="Photo file not found on disk.")
+
+            from PIL import Image
+            with Image.open(target) as img:
+                # PIL rotates counter-clockwise for positive degrees; -90 is 90° clockwise
+                rotated = img.rotate(-90, expand=True)
+                new_data = images.to_jpeg_bytes(rotated, quality=92)
+                target.write_bytes(new_data)
+                w, h, size = rotated.width, rotated.height, len(new_data)
+
+            conn.execute(
+                """UPDATE progress_photos SET width = ?, height = ?, bytes = ?
+                   WHERE id = ?""",
+                (w, h, size, photo_id),
+            )
+            updated = conn.execute(
+                "SELECT * FROM progress_photos WHERE id = ?", (photo_id,)
+            ).fetchone()
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"Failed to rotate photo: {exc}") from exc
+
+    return {"photo": _serialize(updated)}
+
+
 @router.get("/media/{path:path}")
 def media(path: str):
     """Serve a stored image. Paths are validated against traversal."""

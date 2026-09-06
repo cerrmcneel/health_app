@@ -19,9 +19,21 @@ let stream = null;
 let facing = 'environment';
 let pose = 'front';
 let queue = [...POSE_ORDER];
-let timerSeconds = 0;
+let savedTimer = 3;
+try {
+  const val = localStorage.getItem('capture_timer_seconds');
+  if (val !== null && [0, 3, 10].includes(Number(val))) {
+    savedTimer = Number(val);
+  }
+} catch {}
+let timerSeconds = savedTimer;
 let busy = false;
 let terminal = false;  // a fatal error or the finished state; do not restart the camera
+
+let reviewSourceCanvas = null;
+let reviewRotation = 0;
+let reviewFlipped = false;
+let reviewTargetDay = null;
 
 // --- camera ---
 async function startCamera() {
@@ -151,6 +163,114 @@ function countdown(seconds) {
   });
 }
 
+// --- review / retake flow ---
+function updateReviewTransform() {
+  const img = $('review-img');
+  if (!img) return;
+  const scaleX = reviewFlipped ? -1 : 1;
+  img.style.transform = `rotate(${reviewRotation}deg) scaleX(${scaleX})`;
+}
+
+function showReview() {
+  const overlay = $('review-overlay');
+  const img = $('review-img');
+  const label = $('review-pose-label');
+
+  if (label) {
+    label.textContent = `Review ${pose === 'front' ? 'Front' : 'Profile'}`;
+  }
+
+  img.src = reviewSourceCanvas.toDataURL('image/jpeg', 0.94);
+  updateReviewTransform();
+  overlay?.classList.remove('hidden');
+}
+
+function hideReview() {
+  const overlay = $('review-overlay');
+  overlay?.classList.add('hidden');
+  const img = $('review-img');
+  if (img) img.removeAttribute('src');
+  reviewSourceCanvas = null;
+  busy = false;
+  $('shutter').disabled = false;
+}
+
+$('btn-review-retake')?.addEventListener('click', () => {
+  hideReview();
+  toast('Photo discarded. Ready to retake.');
+});
+
+$('btn-review-rotate')?.addEventListener('click', () => {
+  reviewRotation = (reviewRotation + 90) % 360;
+  updateReviewTransform();
+});
+
+$('btn-review-flip')?.addEventListener('click', () => {
+  reviewFlipped = !reviewFlipped;
+  updateReviewTransform();
+});
+
+async function renderFinalBlob(srcCanvas, rotation, flipped) {
+  const rot = ((rotation % 360) + 360) % 360;
+  const isQuarterTurn = rot === 90 || rot === 270;
+
+  const out = document.createElement('canvas');
+  out.width = isQuarterTurn ? srcCanvas.height : srcCanvas.width;
+  out.height = isQuarterTurn ? srcCanvas.width : srcCanvas.height;
+
+  const ctx = out.getContext('2d');
+  ctx.save();
+  ctx.translate(out.width / 2, out.height / 2);
+  ctx.rotate((rot * Math.PI) / 180);
+  if (flipped) {
+    ctx.scale(-1, 1);
+  }
+  ctx.drawImage(srcCanvas, -srcCanvas.width / 2, -srcCanvas.height / 2);
+  ctx.restore();
+
+  return new Promise((res) => out.toBlob(res, 'image/jpeg', 0.94));
+}
+
+$('btn-review-save')?.addEventListener('click', async () => {
+  if (!reviewSourceCanvas) return;
+
+  const btn = $('btn-review-save');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  try {
+    const finalBlob = await renderFinalBlob(reviewSourceCanvas, reviewRotation, reviewFlipped);
+    if (!finalBlob) {
+      toast('Could not encode final photo.', true);
+      return;
+    }
+
+    const form = new FormData();
+    form.append('image', finalBlob, `${pose}.jpg`);
+    form.append('pose', pose);
+    if (reviewTargetDay) {
+      form.append('day', reviewTargetDay);
+    }
+
+    const result = await postForm('/api/photos', form);
+    toast(`${pose} photo saved`);
+
+    hideReview();
+
+    queue = queue.filter((p) => p !== pose);
+    if (queue.length) {
+      await loadPose(queue[0]);
+    } else {
+      finish(result.photo);
+    }
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Keep Photo ✓';
+  }
+});
+
 async function capture() {
   const video = $('video');
   if (!video.videoWidth) {
@@ -163,7 +283,7 @@ async function capture() {
   $('flash').classList.add('fire');
   setTimeout(() => $('flash').classList.remove('fire'), 360);
 
-  const canvas = $('canvas');
+  const canvas = document.createElement('canvas');
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
   const ctx = canvas.getContext('2d');
@@ -173,33 +293,12 @@ async function capture() {
   }
   ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-  const blob = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.94));
-  if (!blob) {
-    toast('Could not encode the photo.', true);
-    busy = false;
-    $('shutter').disabled = false;
-    return;
-  }
+  reviewSourceCanvas = canvas;
+  reviewRotation = 0;
+  reviewFlipped = false;
+  reviewTargetDay = null;
 
-  const form = new FormData();
-  form.append('image', blob, `${pose}.jpg`);
-  form.append('pose', pose);
-
-  try {
-    const result = await postForm('/api/photos', form);
-    toast(`${pose} photo saved`);
-    queue = queue.filter((p) => p !== pose);
-    if (queue.length) {
-      await loadPose(queue[0]);   // auto-advance front -> profile
-    } else {
-      finish(result.photo);
-    }
-  } catch (err) {
-    toast(err.message, true);
-  } finally {
-    busy = false;
-    $('shutter').disabled = false;
-  }
+  showReview();
 }
 
 // --- controls ---
@@ -209,8 +308,9 @@ $('btn-flip').addEventListener('click', async () => {
 });
 
 $('btn-timer').addEventListener('click', () => {
-  timerSeconds = { 0: 3, 3: 10, 10: 0 }[timerSeconds];
+  timerSeconds = { 3: 10, 10: 0, 0: 3 }[timerSeconds] ?? 3;
   $('btn-timer').textContent = `${timerSeconds}s`;
+  try { localStorage.setItem('capture_timer_seconds', String(timerSeconds)); } catch {}
 });
 
 // --- file upload fallback ---
@@ -229,22 +329,37 @@ $('file-upload')?.addEventListener('change', async (e) => {
   const useYesterday = confirm(`Upload "${file.name}" for Yesterday (${yesterday})?\n\n- Click OK for Yesterday (${yesterday})\n- Click Cancel for Today (${today})`);
   const chosenDay = useYesterday ? yesterday : today;
 
-  const form = new FormData();
-  form.append('image', file, file.name || `${pose}.jpg`);
-  form.append('pose', pose);
-  form.append('day', chosenDay);
-
   try {
-    const result = await postForm('/api/photos', form);
-    toast(`${pose} photo saved for ${chosenDay}`);
-    queue = queue.filter((p) => p !== pose);
-    if (queue.length) {
-      await loadPose(queue[0]);
-    } else {
-      finish(result.photo);
+    const imgBitmap = await createImageBitmap(file);
+    const canvas = document.createElement('canvas');
+    canvas.width = imgBitmap.width;
+    canvas.height = imgBitmap.height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(imgBitmap, 0, 0);
+
+    reviewSourceCanvas = canvas;
+    reviewRotation = 0;
+    reviewFlipped = false;
+    reviewTargetDay = chosenDay;
+    showReview();
+  } catch {
+    const form = new FormData();
+    form.append('image', file, file.name || `${pose}.jpg`);
+    form.append('pose', pose);
+    form.append('day', chosenDay);
+
+    try {
+      const result = await postForm('/api/photos', form);
+      toast(`${pose} photo saved for ${chosenDay}`);
+      queue = queue.filter((p) => p !== pose);
+      if (queue.length) {
+        await loadPose(queue[0]);
+      } else {
+        finish(result.photo);
+      }
+    } catch (err) {
+      toast(err.message, true);
     }
-  } catch (err) {
-    toast(err.message, true);
   }
 });
 
@@ -285,6 +400,8 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('pagehide', stopCamera);
 
 (async function init() {
+  const btnTimer = $('btn-timer');
+  if (btnTimer) btnTimer.textContent = `${timerSeconds}s`;
   try {
     const status = await getJSON('/api/photos/status');
     queue = status.remaining.length ? status.remaining : [...POSE_ORDER];

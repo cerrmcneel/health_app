@@ -24,9 +24,12 @@ async function load() {
     : 'No photos yet';
 
   $('gallery').innerHTML = photos.length
-    ? photos.map((p) => `<figure>
-        <img src="${esc(p.url)}" alt="${esc(p.pose)} on ${esc(p.day)}" loading="lazy">
-        <figcaption>${esc(p.pose)} &middot; ${esc(p.day)}</figcaption>
+    ? photos.map((p) => `<figure class="gallery-item">
+        <img src="${esc(p.url)}?t=${p.bytes || ''}" alt="${esc(p.pose)} on ${esc(p.day)}" loading="lazy">
+        <figcaption>
+          <span>${esc(p.pose)} &middot; ${esc(p.day)}</span>
+          <button type="button" class="btn-rotate-photo" data-id="${p.id}" title="Rotate 90° clockwise" aria-label="Rotate 90° clockwise">&#8635;</button>
+        </figcaption>
       </figure>`).join('')
     : '<div class="empty" style="grid-column:1/-1">Nothing captured yet.</div>';
 
@@ -46,23 +49,32 @@ function renderCompare() {
   $('compare-empty').classList.toggle('hidden', enough);
   if (!enough) return;
 
+  const curBefore = $('pick-before')?.value;
+  const curAfter = $('pick-after')?.value;
+
   const options = (selected) => list.map((p) =>
-    `<option value="${esc(p.url)}" data-day="${esc(p.day)}" ${p.url === selected ? 'selected' : ''}>
+    `<option value="${esc(p.url)}" data-id="${p.id}" data-bytes="${p.bytes || 0}" data-day="${esc(p.day)}" ${p.url === selected ? 'selected' : ''}>
       ${esc(p.day)}</option>`).join('');
 
-  // Default to the widest span available: first shot vs most recent.
-  $('pick-before').innerHTML = options(list[0].url);
-  $('pick-after').innerHTML = options(list[list.length - 1].url);
+  // Preserve current selections when rotating, or default to earliest vs latest
+  const bVal = list.some((p) => p.url === curBefore) ? curBefore : list[0].url;
+  const aVal = list.some((p) => p.url === curAfter) ? curAfter : list[list.length - 1].url;
+
+  $('pick-before').innerHTML = options(bVal);
+  $('pick-after').innerHTML = options(aVal);
   applyPicks();
 }
 
 function applyPicks() {
   const before = $('pick-before');
   const after = $('pick-after');
-  $('img-before').src = before.value;
-  $('img-after').src = after.value;
-  $('label-before').textContent = prettyDate(before.selectedOptions[0].dataset.day);
-  $('label-after').textContent = prettyDate(after.selectedOptions[0].dataset.day);
+  if (!before || !after || !before.selectedOptions.length || !after.selectedOptions.length) return;
+  const bOpt = before.selectedOptions[0];
+  const aOpt = after.selectedOptions[0];
+  $('img-before').src = `${before.value}?t=${bOpt.dataset.bytes || ''}`;
+  $('img-after').src = `${after.value}?t=${aOpt.dataset.bytes || ''}`;
+  $('label-before').textContent = prettyDate(bOpt.dataset.day);
+  $('label-after').textContent = prettyDate(aOpt.dataset.day);
 }
 
 function applySplit() {
@@ -139,6 +151,45 @@ $('upload-photo-form')?.addEventListener('submit', async (e) => {
       btn.textContent = 'Upload & Save';
     }
   }
+});
+
+async function rotatePhoto(id, btn) {
+  if (!id) return;
+  if (btn) {
+    btn.disabled = true;
+    btn.style.opacity = '0.5';
+  }
+  try {
+    await postForm(`/api/photos/${id}/rotate`, new FormData());
+    toast('Photo rotated 90°');
+    await load();
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.style.opacity = '1';
+    }
+  }
+}
+
+$('gallery').addEventListener('click', (e) => {
+  const btn = e.target.closest('.btn-rotate-photo');
+  if (btn && btn.dataset.id) {
+    rotatePhoto(btn.dataset.id, btn);
+  }
+});
+
+$('btn-rotate-before')?.addEventListener('click', (e) => {
+  const sel = $('pick-before');
+  const id = sel?.selectedOptions[0]?.dataset.id;
+  rotatePhoto(id, e.currentTarget);
+});
+
+$('btn-rotate-after')?.addEventListener('click', (e) => {
+  const sel = $('pick-after');
+  const id = sel?.selectedOptions[0]?.dataset.id;
+  rotatePhoto(id, e.currentTarget);
 });
 
 $('split').addEventListener('input', applySplit);

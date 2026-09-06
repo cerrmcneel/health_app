@@ -41,7 +41,7 @@
       <span id="opacity-val" style="min-width:34px;text-align:right">35%</span>
     </div>
     <div class="shutter-row">
-      <button class="icon-btn" id="btn-timer" aria-label="Self-timer">0s</button>
+      <button class="icon-btn" id="btn-timer" aria-label="Self-timer">3s</button>
       <button class="shutter" id="shutter" aria-label="Take photo"></button>
       <button class="icon-btn" id="btn-upload" aria-label="Upload photo from files" title="Upload from files" style="font-size:17px">&#128194;</button>
       <button class="icon-btn" id="btn-flip" aria-label="Switch camera">&#8635;</button>
@@ -49,6 +49,27 @@
   </div>
 
   <input type="file" id="file-upload" accept="image/*" class="hidden">
+
+  <!-- Photo review / retake overlay -->
+  <div class="cam-review hidden" id="review-overlay">
+    <div class="review-top">
+      <div>
+        <div class="pose" id="review-pose-label">Review Front</div>
+        <div class="sub">Check framing &amp; orientation before saving</div>
+      </div>
+    </div>
+    <div class="review-preview-wrap">
+      <img id="review-img" class="review-img" alt="Captured preview">
+    </div>
+    <div class="review-bottom">
+      <div class="review-row">
+        <button type="button" class="icon-btn review-btn" id="btn-review-retake" title="Retake photo" aria-label="Retake photo">&#8634; Retake</button>
+        <button type="button" class="icon-btn review-btn" id="btn-review-rotate" title="Rotate 90° clockwise" aria-label="Rotate">&#8635; Rotate</button>
+        <button type="button" class="icon-btn review-btn" id="btn-review-flip" title="Mirror horizontally" aria-label="Mirror">&#8646; Flip</button>
+        <button type="button" class="btn btn-primary btn-keep" id="btn-review-save" aria-label="Keep photo">Keep Photo &#10003;</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Transparent countdown overlay for ghost alignment during timer -->
   <div class="cam-countdown hidden" id="countdown-overlay">
