@@ -105,7 +105,10 @@
   <section class="card">
     <div style="display:flex;align-items:center;justify-content:space-between">
       <h2>Progress photos</h2>
-      <button id="btn-upload-photo" class="meal-btn" style="margin-top:-6px">+ Upload photo</button>
+      <div style="display:flex;gap:6px;align-items:center">
+        <a href="/progress" class="meal-btn" style="text-decoration:none;margin-top:-6px">View all &rarr;</a>
+        <button id="btn-upload-photo" class="meal-btn" style="margin-top:-6px">+ Upload photo</button>
+      </div>
     </div>
     <div id="photo-status" class="muted" style="font-size:13px;margin-bottom:10px"></div>
     <div class="gallery" id="latest-photos"></div>

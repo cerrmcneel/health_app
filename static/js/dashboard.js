@@ -447,13 +447,32 @@ async function loadPhotos() {
   for (const p of photos.photos) {
     if (!latest[p.pose]) latest[p.pose] = p;
   }
-  const entries = Object.values(latest);
-  $('latest-photos').innerHTML = entries.length
-    ? entries.map((p) => `<figure>
-        <img src="${esc(p.url)}" alt="${esc(p.pose)} on ${esc(p.day)}" loading="lazy">
-        <figcaption>${esc(p.pose)} &middot; ${prettyDate(p.day)}</figcaption>
-      </figure>`).join('')
-    : '<div class="empty" style="grid-column:1/-1">No progress photos yet.</div>';
+
+  const poses = ['front', 'profile'];
+  const hasAny = photos.photos.length > 0;
+  if (!hasAny) {
+    $('latest-photos').innerHTML = '<div class="empty" style="grid-column:1/-1">No progress photos yet.</div>';
+    return;
+  }
+
+  $('latest-photos').innerHTML = poses.map((pose) => {
+    const p = latest[pose];
+    if (p) {
+      return `<figure>
+        <a href="/progress" title="View in Progress">
+          <img src="${esc(p.url)}?t=${p.bytes || ''}" alt="${esc(p.pose)} on ${esc(p.day)}" loading="lazy">
+        </a>
+        <figcaption><span>${esc(p.pose)} &middot; ${prettyDate(p.day)}</span></figcaption>
+      </figure>`;
+    } else {
+      return `<div class="gallery-placeholder">
+        <span class="gallery-placeholder-icon">&#128247;</span>
+        <span class="gallery-placeholder-title">${pose} pose</span>
+        <span class="gallery-placeholder-sub">Not captured yet</span>
+        <a class="btn btn-sm" href="/capture" style="margin-top:6px;font-size:11px;padding:2px 10px;height:26px;min-height:26px">Capture</a>
+      </div>`;
+    }
+  }).join('');
 }
 
 // --- Photo Upload Modal Handlers ---
