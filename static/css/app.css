@@ -407,7 +407,7 @@ body.cam { padding: 0; background: #000; overflow: hidden; }
 .btn-rotate-photo:hover { background: var(--line); }
 .btn-rotate-photo:active { transform: scale(0.92); }
 
-/* --- compare slider --- */
+/* --- compare slider & panes --- */
 .compare {
   position: relative;
   width: 100%;
@@ -416,18 +416,226 @@ body.cam { padding: 0; background: #000; overflow: hidden; }
   overflow: hidden;
   background: var(--surface-2);
   border: 1px solid var(--line);
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: pan-y;
 }
-.compare img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.compare img.after { clip-path: inset(0 0 0 var(--split, 50%)); }
-.compare .handle { position: absolute; top: 0; bottom: 0; width: 2px; background: #fff; left: var(--split, 50%); pointer-events: none; }
+.compare-pane {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+.compare-pane.after {
+  clip-path: inset(0 0 0 var(--split, 50%));
+}
+.compare img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+.compare-pane.after img {
+  transform-origin: center center;
+  transform: translate(var(--after-x, 0px), var(--after-y, 0px)) scale(var(--after-scale, 1));
+  will-change: transform;
+}
+.compare.align-mode {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.align-pan-overlay {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  touch-action: none;
+  cursor: grab;
+}
+.compare.align-mode .align-pan-overlay {
+  display: block;
+}
+.compare.align-mode .align-pan-overlay:active {
+  cursor: grabbing;
+}
+.compare .handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #fff;
+  left: var(--split, 50%);
+  pointer-events: none;
+  z-index: 5;
+}
 .compare .handle::after {
-  content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-  width: 32px; height: 32px; border-radius: 50%; background: #fff;
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
 }
 .compare input[type=range] {
-  position: absolute; inset: auto 0 0 0; width: 100%; opacity: 0; height: 100%; margin: 0; padding: 0;
-  min-height: 0; cursor: ew-resize;
+  position: absolute;
+  inset: auto 0 0 0;
+  width: 100%;
+  opacity: 0;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  min-height: 0;
+  cursor: ew-resize;
+  z-index: 6;
 }
+.compare.align-mode input[type=range] {
+  pointer-events: none;
+}
+
+/* Alignment Toolbar */
+.align-toolbar {
+  margin-top: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+}
+.align-toolbar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.align-toolbar-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.align-badge {
+  font-size: 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  padding: 2px 7px;
+  border-radius: 99px;
+  color: var(--accent);
+  font-weight: 600;
+}
+.align-controls-grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: center;
+}
+.align-slider-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.align-slider-wrap label {
+  font-size: 11px;
+  color: var(--muted);
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+.align-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.align-slider-row input[type=range] {
+  flex: 1;
+  min-height: 0;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+}
+.align-step-btn {
+  width: 28px;
+  height: 28px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--text);
+  cursor: pointer;
+}
+.align-step-btn:active {
+  background: var(--line);
+  transform: scale(0.94);
+}
+.align-nudge-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 30px);
+  grid-template-rows: repeat(3, 30px);
+  gap: 3px;
+  justify-items: center;
+  align-items: center;
+}
+.nudge-btn {
+  width: 30px;
+  height: 30px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 6px;
+  font-size: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.nudge-btn:active {
+  background: var(--line);
+  transform: scale(0.92);
+}
+.nudge-btn.up { grid-column: 2; grid-row: 1; }
+.nudge-btn.left { grid-column: 1; grid-row: 2; }
+.nudge-btn.center-dot {
+  grid-column: 2; grid-row: 2;
+  font-size: 9px;
+  color: var(--muted);
+  border: none;
+  background: transparent;
+  pointer-events: none;
+}
+.nudge-btn.right { grid-column: 3; grid-row: 2; }
+.nudge-btn.down { grid-column: 2; grid-row: 3; }
+
+.align-actions-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+.align-action-btn {
+  flex: 1;
+  font-size: 12px;
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
 
 /* --- profile badge & switcher --- */
 .profile-pill {

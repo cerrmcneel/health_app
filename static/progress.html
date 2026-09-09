@@ -91,14 +91,70 @@
 
     <div id="compare-wrap">
       <div class="compare" id="compare">
-        <img id="img-before" alt="Earlier photo">
-        <img id="img-after" class="after" alt="Later photo">
+        <div class="compare-pane before">
+          <img id="img-before" alt="Earlier photo">
+        </div>
+        <div class="compare-pane after" id="compare-after-pane">
+          <img id="img-after" alt="Later photo">
+        </div>
         <div class="handle" id="handle"></div>
         <input type="range" id="split" min="0" max="100" value="50" aria-label="Comparison slider">
+        <div class="align-pan-overlay" id="align-pan-overlay" title="Drag to pan image"></div>
       </div>
       <div class="chart-foot" style="margin-top:8px">
         <span id="label-before">&mdash;</span>
         <span id="label-after">&mdash;</span>
+      </div>
+
+      <!-- Alignment Toolbar Toggle & Panel -->
+      <div style="display:flex;justify-content:flex-end;margin-top:6px">
+        <button type="button" class="btn btn-sm" id="btn-toggle-align" style="font-size:12px;min-height:30px;padding:2px 10px;background:var(--surface-2);color:var(--text);border:1px solid var(--line)">
+          📐 Adjust Alignment
+        </button>
+      </div>
+
+      <div class="align-toolbar hidden" id="align-toolbar">
+        <div class="align-toolbar-header">
+          <div class="align-toolbar-title">
+            <span>📐 Alignment Controls</span>
+            <span class="align-badge" id="align-status-badge">Default</span>
+          </div>
+          <button type="button" class="btn btn-sm" id="btn-close-align" style="font-size:14px;min-height:0;padding:2px 8px;background:none;border:none;color:var(--muted);cursor:pointer">&times;</button>
+        </div>
+
+        <div class="align-controls-grid">
+          <div class="align-slider-wrap">
+            <label for="align-scale-slider">
+              <span>Zoom / Scale</span>
+              <span id="align-scale-val" style="color:var(--text);font-weight:600">100%</span>
+            </label>
+            <div class="align-slider-row">
+              <button type="button" class="align-step-btn" id="btn-scale-minus" aria-label="Scale down">&minus;</button>
+              <input type="range" id="align-scale-slider" min="70" max="140" value="100" step="1">
+              <button type="button" class="align-step-btn" id="btn-scale-plus" aria-label="Scale up">+</button>
+            </div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">
+              Tip: Drag directly on the photo to pan.
+            </div>
+          </div>
+
+          <div class="align-nudge-pad">
+            <button type="button" class="nudge-btn up" id="btn-nudge-up" title="Nudge Up" aria-label="Nudge Up">&#9650;</button>
+            <button type="button" class="nudge-btn left" id="btn-nudge-left" title="Nudge Left" aria-label="Nudge Left">&#9664;</button>
+            <span class="nudge-btn center-dot">&bull;</span>
+            <button type="button" class="nudge-btn right" id="btn-nudge-right" title="Nudge Right" aria-label="Nudge Right">&#9654;</button>
+            <button type="button" class="nudge-btn down" id="btn-nudge-down" title="Nudge Down" aria-label="Nudge Down">&#9660;</button>
+          </div>
+        </div>
+
+        <div class="align-actions-row">
+          <button type="button" class="btn align-action-btn" id="btn-auto-align" style="background:var(--accent-dim);color:var(--accent);border-color:var(--accent);font-weight:600">
+            ✨ Auto-Align
+          </button>
+          <button type="button" class="btn align-action-btn" id="btn-reset-align">
+            Reset
+          </button>
+        </div>
       </div>
 
       <details class="compare-customize" id="compare-customize">

@@ -366,6 +366,176 @@ function renderCompare() {
   applyPicks();
 }
 
+let alignMode = false;
+let alignState = { scale: 100, x: 0, y: 0 };
+let currentAfterPhotoId = null;
+
+function getStoredAlignment(photoId) {
+  if (!photoId) return null;
+  try {
+    const raw = localStorage.getItem(`photo_align_${photoId}`);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return null;
+}
+
+function saveStoredAlignment(photoId, align) {
+  if (!photoId) return;
+  try {
+    localStorage.setItem(`photo_align_${photoId}`, JSON.stringify(align));
+  } catch {}
+}
+
+function applyAlignment(align = {}, save = true) {
+  alignState = { ...alignState, ...align };
+  const pane = $('compare-after-pane');
+  if (pane) {
+    pane.style.setProperty('--after-scale', (alignState.scale / 100).toFixed(3));
+    pane.style.setProperty('--after-x', `${Math.round(alignState.x)}px`);
+    pane.style.setProperty('--after-y', `${Math.round(alignState.y)}px`);
+  }
+
+  const slider = $('align-scale-slider');
+  if (slider && align.scale !== undefined) slider.value = alignState.scale;
+  const scaleVal = $('align-scale-val');
+  if (scaleVal) scaleVal.textContent = `${alignState.scale}%`;
+
+  const isDefault = alignState.scale === 100 && Math.round(alignState.x) === 0 && Math.round(alignState.y) === 0;
+  const badge = $('align-status-badge');
+  if (badge) {
+    badge.textContent = isDefault ? 'Default' : 'Adjusted';
+    badge.style.color = isDefault ? 'var(--muted)' : 'var(--accent)';
+  }
+
+  if (save && currentAfterPhotoId) {
+    saveStoredAlignment(currentAfterPhotoId, alignState);
+  }
+}
+
+async function autoAlignSilhouette() {
+  const imgB = $('img-before');
+  const imgA = $('img-after');
+  if (!imgB || !imgA) return;
+
+  const btn = $('btn-auto-align');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Analyzing…';
+  }
+
+  try {
+    if (!imgB.complete) await new Promise((r) => imgB.onload = r);
+    if (!imgA.complete) await new Promise((r) => imgA.onload = r);
+
+    const analyzeImage = (img) => {
+      const canvas = document.createElement('canvas');
+      const w = 120;
+      const h = 160;
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(img, 0, 0, w, h);
+      const data = ctx.getImageData(0, 0, w, h).data;
+
+      // Compute horizontal brightness & contrast variance per column
+      const colVariance = new Float32Array(w);
+      const yStart = Math.floor(h * 0.15);
+      const yEnd = Math.floor(h * 0.85);
+      for (let x = 0; x < w; x++) {
+        let sum = 0;
+        let sumSq = 0;
+        let count = 0;
+        for (let y = yStart; y < yEnd; y++) {
+          const idx = (y * w + x) * 4;
+          const lum = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+          sum += lum;
+          sumSq += lum * lum;
+          count++;
+        }
+        const mean = sum / count;
+        colVariance[x] = (sumSq / count) - (mean * mean);
+      }
+
+      // Weighted horizontal centroid (center of silhouette)
+      let weightedSum = 0;
+      let totalWeight = 0;
+      for (let x = 0; x < w; x++) {
+        const weight = Math.max(0, colVariance[x]);
+        weightedSum += x * weight;
+        totalWeight += weight;
+      }
+      const centerX = totalWeight > 0 ? (weightedSum / totalWeight) / w : 0.5;
+
+      // Vertical row variance to locate top and bottom of torso
+      const rowVariance = new Float32Array(h);
+      for (let y = 0; y < h; y++) {
+        let sum = 0;
+        let sumSq = 0;
+        for (let x = 0; x < w; x++) {
+          const idx = (y * w + x) * 4;
+          const lum = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+          sum += lum;
+          sumSq += lum * lum;
+        }
+        const mean = sum / w;
+        rowVariance[y] = (sumSq / w) - (mean * mean);
+      }
+
+      let topY = Math.floor(h * 0.1);
+      let bottomY = Math.floor(h * 0.9);
+      const avgRowVar = rowVariance.reduce((a, b) => a + b, 0) / h;
+      for (let y = 5; y < h - 10; y++) {
+        if (rowVariance[y] > avgRowVar * 0.65) {
+          topY = y;
+          break;
+        }
+      }
+      for (let y = h - 5; y > topY + 15; y--) {
+        if (rowVariance[y] > avgRowVar * 0.65) {
+          bottomY = y;
+          break;
+        }
+      }
+
+      const centerY = ((topY + bottomY) / 2) / h;
+      const height = Math.max(0.2, (bottomY - topY) / h);
+
+      return { centerX, centerY, height };
+    };
+
+    const bMetrics = analyzeImage(imgB);
+    const aMetrics = analyzeImage(imgA);
+
+    let scaleRatio = 1.0;
+    if (aMetrics.height > 0.1 && bMetrics.height > 0.1) {
+      scaleRatio = bMetrics.height / aMetrics.height;
+    }
+    scaleRatio = Math.max(0.85, Math.min(1.25, scaleRatio));
+
+    const rect = $('compare')?.getBoundingClientRect() || { width: 350, height: 466 };
+    let dx = (bMetrics.centerX - aMetrics.centerX) * rect.width;
+    let dy = (bMetrics.centerY - aMetrics.centerY * scaleRatio) * rect.height * 0.6;
+
+    dx = Math.max(-50, Math.min(50, dx));
+    dy = Math.max(-50, Math.min(50, dy));
+
+    const finalScale = Math.round(scaleRatio * 100);
+    const finalX = Math.round(dx);
+    const finalY = Math.round(dy);
+
+    applyAlignment({ scale: finalScale, x: finalX, y: finalY }, true);
+    toast('Auto-aligned silhouette & scale');
+  } catch (err) {
+    console.error('Auto align error:', err);
+    toast('Auto-align failed', true);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '✨ Auto-Align';
+    }
+  }
+}
+
 function applyPicks() {
   const before = $('pick-before');
   const after = $('pick-after');
@@ -376,12 +546,109 @@ function applyPicks() {
   $('img-after').src = `${after.value}?t=${aOpt.dataset.bytes || ''}`;
   $('label-before').textContent = `Earlier: ${prettyDate(bOpt.dataset.day)}`;
   $('label-after').textContent = `Later: ${prettyDate(aOpt.dataset.day)}`;
+
+  // Load and apply stored alignment for the selected comparison photo
+  currentAfterPhotoId = aOpt.dataset.id;
+  const stored = getStoredAlignment(currentAfterPhotoId);
+  if (stored) {
+    applyAlignment(stored, false);
+  } else {
+    applyAlignment({ scale: 100, x: 0, y: 0 }, false);
+  }
 }
 
 function applySplit() {
   const value = $('split').value;
   $('compare').style.setProperty('--split', `${value}%`);
 }
+
+// Interactive Touch & Mouse Dragging for Alignment
+let isPanning = false;
+let panStartX = 0;
+let panStartY = 0;
+let panOrigX = 0;
+let panOrigY = 0;
+
+const panOverlay = $('align-pan-overlay');
+panOverlay?.addEventListener('pointerdown', (e) => {
+  if (!alignMode) return;
+  isPanning = true;
+  panStartX = e.clientX;
+  panStartY = e.clientY;
+  panOrigX = alignState.x;
+  panOrigY = alignState.y;
+  panOverlay.setPointerCapture(e.pointerId);
+});
+
+panOverlay?.addEventListener('pointermove', (e) => {
+  if (!isPanning) return;
+  const dx = e.clientX - panStartX;
+  const dy = e.clientY - panStartY;
+  applyAlignment({ x: panOrigX + dx, y: panOrigY + dy }, false);
+});
+
+const endPan = () => {
+  if (isPanning) {
+    isPanning = false;
+    applyAlignment({}, true);
+  }
+};
+panOverlay?.addEventListener('pointerup', endPan);
+panOverlay?.addEventListener('pointercancel', endPan);
+
+// Alignment Toolbar Button Listeners
+$('btn-toggle-align')?.addEventListener('click', () => {
+  alignMode = !alignMode;
+  $('compare')?.classList.toggle('align-mode', alignMode);
+  $('align-toolbar')?.classList.toggle('hidden', !alignMode);
+  const btn = $('btn-toggle-align');
+  if (btn) {
+    btn.textContent = alignMode ? '✓ Done Aligning' : '📐 Adjust Alignment';
+    btn.style.background = alignMode ? 'var(--accent)' : 'var(--surface-2)';
+    btn.style.color = alignMode ? '#06240f' : 'var(--text)';
+    btn.style.fontWeight = alignMode ? '600' : 'normal';
+  }
+});
+
+$('btn-close-align')?.addEventListener('click', () => {
+  alignMode = false;
+  $('compare')?.classList.remove('align-mode');
+  $('align-toolbar')?.classList.add('hidden');
+  const btn = $('btn-toggle-align');
+  if (btn) {
+    btn.textContent = '📐 Adjust Alignment';
+    btn.style.background = 'var(--surface-2)';
+    btn.style.color = 'var(--text)';
+    btn.style.fontWeight = 'normal';
+  }
+});
+
+$('align-scale-slider')?.addEventListener('input', (e) => {
+  applyAlignment({ scale: parseInt(e.target.value, 10) || 100 }, true);
+});
+$('btn-scale-minus')?.addEventListener('click', () => {
+  applyAlignment({ scale: Math.max(70, alignState.scale - 1) }, true);
+});
+$('btn-scale-plus')?.addEventListener('click', () => {
+  applyAlignment({ scale: Math.min(140, alignState.scale + 1) }, true);
+});
+$('btn-nudge-up')?.addEventListener('click', () => {
+  applyAlignment({ y: alignState.y - 2 }, true);
+});
+$('btn-nudge-down')?.addEventListener('click', () => {
+  applyAlignment({ y: alignState.y + 2 }, true);
+});
+$('btn-nudge-left')?.addEventListener('click', () => {
+  applyAlignment({ x: alignState.x - 2 }, true);
+});
+$('btn-nudge-right')?.addEventListener('click', () => {
+  applyAlignment({ x: alignState.x + 2 }, true);
+});
+$('btn-reset-align')?.addEventListener('click', () => {
+  applyAlignment({ scale: 100, x: 0, y: 0 }, true);
+  toast('Alignment reset to default');
+});
+$('btn-auto-align')?.addEventListener('click', autoAlignSilhouette);
 
 // Pose segmented buttons
 $('pose-seg')?.addEventListener('click', (e) => {
