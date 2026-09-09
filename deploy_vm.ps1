@@ -18,17 +18,18 @@ if (-not $lanOk) {
 }
 
 Write-Host "Syncing app and static to $HostIP..."
-scp -r app static "${User}@${HostIP}:~/fitness-tracker/"
+scp -o BatchMode=yes -o ConnectTimeout=10 -r app static "${User}@${HostIP}:~/fitness-tracker/"
 if ($LASTEXITCODE -ne 0) {
     Write-Error "SCP failed."
     exit $LASTEXITCODE
 }
 
 Write-Host "Setting file permissions on $HostIP..."
-ssh "${User}@${HostIP}" "chmod -R a+rX ~/fitness-tracker/app ~/fitness-tracker/static"
+ssh -o BatchMode=yes -o ConnectTimeout=10 "${User}@${HostIP}" "chmod -R a+rX ~/fitness-tracker/app ~/fitness-tracker/static"
 
 Write-Host "Rebuilding and restarting container on $HostIP..."
-ssh "${User}@${HostIP}" "cd ~/fitness-tracker && docker compose build tracker && docker compose up -d tracker"
+ssh -o BatchMode=yes -o ConnectTimeout=10 "${User}@${HostIP}" "cd ~/fitness-tracker && docker compose build tracker && docker compose up -d tracker"
 
 Write-Host "Deployment complete! Checking health..."
-ssh "${User}@${HostIP}" "curl -k -s https://localhost/api/health"
+ssh -o BatchMode=yes -o ConnectTimeout=10 "${User}@${HostIP}" "curl -k -s https://localhost/api/health"
+
