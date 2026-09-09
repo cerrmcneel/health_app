@@ -1,6 +1,6 @@
 import {
   getJSON, postJSON, postForm, putJSON, patchJSON, del, fmt, pct, prettyDate, shiftDay, todayISO,
-  toast, esc, checkHealth, getActiveProfileId, setActiveProfileId,
+  toast, esc, checkHealth, getActiveProfileId, setActiveProfileId, getFoodIcon,
 } from './api.js';
 
 let day = todayISO();
@@ -290,7 +290,7 @@ function renderMeals(meals) {
   }
   box.innerHTML = meals.map((m) => {
     const time = new Date(m.logged_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const names = m.items.map((i) => i.name).join(', ');
+    const names = m.items.map((i) => `${getFoodIcon(i.name)} ${i.name}`).join(', ');
     const thumb = m.image_url
       ? `<img src="${esc(m.image_url)}" alt="" loading="lazy">`
       : `<span class="thumb-none" aria-hidden="true">${esc(MEAL_ICON[m.meal_type] || MEAL_ICON.other)}</span>`;
@@ -298,7 +298,7 @@ function renderMeals(meals) {
       ${thumb}
       <div class="info">
         <b>${esc(m.name)}</b>
-        <small>${time} &middot; ${esc(names).slice(0, 50)}</small>
+        <small>${time} &middot; ${esc(names).slice(0, 60)}</small>
       </div>
       <span class="kc">${fmt(m.totals.calories)}</span>
       <div class="meal-btns">
@@ -370,7 +370,10 @@ function openEditMealModal(meal) {
     <div style="font-size:12px;font-weight:600;margin-bottom:6px">Items & Macros</div>
     ${meal.items.map((it, idx) => `
       <div class="edit-item-row" data-idx="${idx}" style="background:var(--surface-2);border-radius:8px;padding:8px;margin-bottom:6px">
-        <input type="text" class="it-name" value="${esc(it.name)}" placeholder="Item name" style="margin-bottom:4px" required>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+          <span class="food-icon-badge" style="font-size:16px">${getFoodIcon(it.name)}</span>
+          <input type="text" class="it-name" value="${esc(it.name)}" placeholder="Item name" required style="flex:1">
+        </div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px">
           <div><label style="font-size:10px">Grams</label><input type="number" class="it-g" value="${it.grams || 0}" min="0"></div>
           <div><label style="font-size:10px">Calories</label><input type="number" class="it-cal" value="${it.calories || 0}" min="0"></div>

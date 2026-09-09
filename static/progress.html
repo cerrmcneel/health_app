@@ -24,15 +24,71 @@
     </div>
   </header>
 
+  <!-- Weight Progress Card -->
   <section class="card">
-    <h2>Compare</h2>
-    <div class="field">
-      <label for="pose-select">Pose</label>
-      <select id="pose-select">
-        <option value="front" selected>Front</option>
-        <option value="profile">Profile</option>
-      </select>
+    <div class="weight-header-row">
+      <h2 style="margin:0">Weight Trend</h2>
+      <div class="range-pills" id="weight-range-pills" role="radiogroup" aria-label="Weight range">
+        <button type="button" class="range-pill" data-range="14">14D</button>
+        <button type="button" class="range-pill active" data-range="30">30D</button>
+        <button type="button" class="range-pill" data-range="90">90D</button>
+        <button type="button" class="range-pill" data-range="365">All</button>
+      </div>
     </div>
+
+    <div class="weight-stats-grid">
+      <div class="weight-stat-box">
+        <div class="lbl">Current</div>
+        <div class="val" id="w-stat-current">&mdash; <small>kg</small></div>
+      </div>
+      <div class="weight-stat-box">
+        <div class="lbl">7d Change</div>
+        <div class="val" id="w-stat-7d">&mdash;</div>
+      </div>
+      <div class="weight-stat-box">
+        <div class="lbl" id="w-stat-range-lbl">Period Change</div>
+        <div class="val" id="w-stat-range">&mdash;</div>
+      </div>
+    </div>
+
+    <div class="weight-chart-container">
+      <div id="chart-tooltip" class="chart-tooltip hidden">
+        <span class="tt-date" id="tt-date">&mdash;</span>
+        <span class="tt-val" id="tt-val">&mdash;</span>
+        <span class="tt-avg" id="tt-avg">&mdash;</span>
+      </div>
+      <svg id="weight-svg" class="weight-svg" viewBox="0 0 500 190" preserveAspectRatio="none" aria-label="Weight chart"></svg>
+      <div id="weight-empty" class="empty hidden" style="padding:36px 10px">
+        No weight logged for this period.
+      </div>
+    </div>
+
+    <div class="chart-legend">
+      <span class="chart-legend-item">
+        <span class="chart-legend-dot" style="background:var(--muted)"></span> Weigh-in
+      </span>
+      <span class="chart-legend-item">
+        <span class="chart-legend-line" style="background:var(--accent)"></span> 7d Trend
+      </span>
+    </div>
+
+    <form id="quick-weight-form" style="display:flex;gap:8px;margin-top:14px;align-items:center">
+      <input type="date" id="quick-weight-date" style="max-width:140px;min-height:38px;padding:6px 10px;font-size:13px" required>
+      <input type="number" id="quick-weight-val" step="0.1" min="20" max="400" placeholder="Weight (kg)" style="flex:1;min-height:38px;padding:6px 10px;font-size:13px" required>
+      <button type="submit" class="btn btn-primary" style="flex:none;min-height:38px;padding:0 14px;font-size:13px">Log</button>
+    </form>
+  </section>
+
+  <!-- Photo Comparison Card (Simplified) -->
+  <section class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <h2 style="margin:0">Photo Compare</h2>
+      <div class="seg-ctrl" id="pose-seg" role="radiogroup" aria-label="Pose">
+        <button type="button" class="seg-btn active" data-pose="front">Front</button>
+        <button type="button" class="seg-btn" data-pose="profile">Profile</button>
+      </div>
+    </div>
+
     <div id="compare-wrap">
       <div class="compare" id="compare">
         <img id="img-before" alt="Earlier photo">
@@ -40,25 +96,30 @@
         <div class="handle" id="handle"></div>
         <input type="range" id="split" min="0" max="100" value="50" aria-label="Comparison slider">
       </div>
-      <div class="chart-foot">
+      <div class="chart-foot" style="margin-top:8px">
         <span id="label-before">&mdash;</span>
         <span id="label-after">&mdash;</span>
       </div>
-      <div class="field" style="margin-top:12px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-          <label for="pick-before" style="margin-bottom:0">Earlier photo</label>
-          <button type="button" class="btn btn-sm" id="btn-rotate-before" title="Rotate earlier photo 90°" style="font-size:11.5px;padding:2px 8px;background:var(--surface-2);border:1px solid var(--line);border-radius:6px;color:var(--text)">&#8635; Rotate</button>
+
+      <details class="compare-customize" id="compare-customize">
+        <summary>Select specific dates or rotate</summary>
+        <div class="field" style="margin-top:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+            <label for="pick-before" style="margin-bottom:0">Earlier photo</label>
+            <button type="button" class="btn btn-sm" id="btn-rotate-before" title="Rotate earlier photo 90°" style="font-size:11.5px;min-height:0;padding:3px 8px;background:var(--surface);border:1px solid var(--line);border-radius:6px;color:var(--text)">&#8635; Rotate</button>
+          </div>
+          <select id="pick-before"></select>
         </div>
-        <select id="pick-before"></select>
-      </div>
-      <div class="field">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-          <label for="pick-after" style="margin-bottom:0">Later photo</label>
-          <button type="button" class="btn btn-sm" id="btn-rotate-after" title="Rotate later photo 90°" style="font-size:11.5px;padding:2px 8px;background:var(--surface-2);border:1px solid var(--line);border-radius:6px;color:var(--text)">&#8635; Rotate</button>
+        <div class="field" style="margin-bottom:0">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+            <label for="pick-after" style="margin-bottom:0">Later photo</label>
+            <button type="button" class="btn btn-sm" id="btn-rotate-after" title="Rotate later photo 90°" style="font-size:11.5px;min-height:0;padding:3px 8px;background:var(--surface);border:1px solid var(--line);border-radius:6px;color:var(--text)">&#8635; Rotate</button>
+          </div>
+          <select id="pick-after"></select>
         </div>
-        <select id="pick-after"></select>
-      </div>
+      </details>
     </div>
+
     <div id="compare-empty" class="empty hidden">
       Take at least two photos of this pose to compare them.
     </div>
@@ -112,7 +173,7 @@
   <a href="/"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>Today</a>
   <a href="/log"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Log</a>
   <a href="/capture"><svg viewBox="0 0 24 24"><path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="13" r="3.6"/></svg>Capture</a>
-  <a href="/progress"><svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16"/><path d="M8 16v-5M13 16V8M18 16v-3"/></svg>Progress</a>
+  <a href="/progress" class="active"><svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16"/><path d="M8 16v-5M13 16V8M18 16v-3"/></svg>Progress</a>
 </nav>
 <script type="module" src="/static/js/progress.js"></script>
 </body>

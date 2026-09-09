@@ -593,3 +593,208 @@ body.cam { padding: 0; background: #000; overflow: hidden; }
   display: flex; gap: 6px; flex-wrap: wrap; font-size: 11px; color: var(--muted);
 }
 
+/* --- food component icon badge --- */
+.food-icon-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  line-height: 1;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  flex: none;
+  user-select: none;
+}
+
+/* --- segmented control --- */
+.seg-ctrl {
+  display: inline-flex;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  padding: 3px;
+  gap: 3px;
+}
+.seg-btn {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 550;
+  padding: 6px 14px;
+  border-radius: 99px;
+  cursor: pointer;
+  min-height: 0;
+  transition: all .15s ease;
+  line-height: 1.2;
+}
+.seg-btn.active {
+  background: var(--accent);
+  color: #06240f;
+  font-weight: 600;
+}
+
+/* --- weight progress card & SVG chart --- */
+.weight-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.range-pills {
+  display: inline-flex;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 2px;
+  gap: 2px;
+}
+.range-pill {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+  min-height: 0;
+  transition: all .15s ease;
+}
+.range-pill.active {
+  background: var(--accent);
+  color: #06240f;
+}
+
+.weight-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.weight-stat-box {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+.weight-stat-box .lbl {
+  font-size: 10px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  margin-bottom: 3px;
+}
+.weight-stat-box .val {
+  font-size: 16px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+}
+.weight-stat-box .val small {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 400;
+}
+.weight-stat-box .val.down { color: var(--accent); }
+.weight-stat-box .val.up { color: var(--danger); }
+
+.weight-chart-container {
+  position: relative;
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 8px 8px;
+  overflow: hidden;
+}
+.weight-svg {
+  width: 100%;
+  height: 190px;
+  display: block;
+  touch-action: none;
+}
+.chart-tooltip {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  background: rgba(15, 17, 21, 0.94);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 11.5px;
+  line-height: 1.4;
+  pointer-events: none;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  transition: opacity .15s ease;
+}
+.chart-tooltip.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+.chart-tooltip .tt-date { color: var(--muted); font-weight: 500; }
+.chart-tooltip .tt-val { font-weight: 650; color: var(--text); }
+.chart-tooltip .tt-avg { color: var(--accent); font-weight: 600; }
+
+.chart-legend {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 6px;
+  padding: 0 4px;
+}
+.chart-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.chart-legend-line {
+  width: 12px;
+  height: 2.5px;
+  border-radius: 2px;
+}
+.chart-legend-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+/* --- customize dates details toggle --- */
+details.compare-customize {
+  margin-top: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 12px;
+}
+details.compare-customize summary {
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+details.compare-customize summary:hover {
+  color: var(--text);
+}
+details.compare-customize[open] summary {
+  margin-bottom: 10px;
+  color: var(--text);
+}
+
+

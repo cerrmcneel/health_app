@@ -165,6 +165,37 @@ export function inferMealType(date = new Date()) {
   return 'snack';
 }
 
+/**
+ * Returns an open-source visual badge icon for a food component based on keywords.
+ */
+export function getFoodIcon(name = '') {
+  if (!name) return '🍽️';
+  const n = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  if (/pollo|chicken|turkey|pavo|duck|hen|wings|poultry/.test(n)) return '🍗';
+  if (/beef|steak|ternera|cerdo|pork|bacon|jamon|ham|lamb|carne|meat|burger|bistec|sausage|salchicha/.test(n)) return '🥩';
+  if (/salmon|tuna|atun|pescad|fish|trout|bacalao|shrimp|gamba|langostino|calamar|squid|octopus|pulpo|marisco|seafood|sardina/.test(n)) return '🐟';
+  if (/egg|huevo|omelet|tortilla|scramble/.test(n)) return '🍳';
+  if (/arroz|rice|quinoa|oat|avena|cereal|grain|porridge|couscous/.test(n)) return '🍚';
+  if (/pasta|spaghetti|macaron|noodle|fideo|ramen|lasagna|tallarin/.test(n)) return '🍝';
+  if (/pan|bread|toast|tostada|bagel|croissant|bun|wrap|pita|sandwich|bocadillo/.test(n)) return '🍞';
+  if (/patata|potato|papa|fries|chip/.test(n)) return '🥔';
+  if (/brocoli|broccoli|espinaca|spinach|esparrago|asparagus|calabacin|zucchini|judia|cabbage|col|kale/.test(n)) return '🥦';
+  if (/ensalada|salad|lechuga|lettuce|pepino|cucumber|zanahoria|carrot|pimiento|pepper|tomate|tomato|cebolla|onion|seta|champinon|mushroom/.test(n)) return '🥗';
+  if (/aguacate|avocado|guacamole|aceituna|olive|aceite|oil/.test(n)) return '🥑';
+  if (/queso|cheese|mozzarella|cheddar|parmesan|gouda|feta|cottage/.test(n)) return '🧀';
+  if (/yogur|yogurt/.test(n)) return '🥣';
+  if (/leche|milk|batido|shake|whey|casein|protein/.test(n)) return '🥛';
+  if (/manzana|apple|platano|banana|fresa|berry|orange|naranja|uva|grape|melon|sandia|watermelon|pera|pear|limon|lemon|fruit|fruta/.test(n)) return '🍎';
+  if (/nuez|nut|almendra|almond|cacahuete|peanut|semilla|seed|cashew|pistacho/.test(n)) return '🥜';
+  if (/lenteja|lentil|garbanzo|chickpea|alubia|bean|frijol|guisante|pea|legumbre/.test(n)) return '🫘';
+  if (/sopa|soup|caldo|broth|guiso|stew/.test(n)) return '🍲';
+  if (/chocolate|cookie|galleta|cake|tarta|dulce|sweet|postre|dessert|helado|ice cream/.test(n)) return '🍫';
+  if (/cafe|coffee|te|tea|agua|water|zumo|juice|cerveza|beer|vino|wine/.test(n)) return '☕';
+
+  return '🍽️';
+}
+
 document.addEventListener('DOMContentLoaded', markNav);
 
 // Registering the worker is what makes the app installable to the home screen.

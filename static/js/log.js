@@ -1,4 +1,4 @@
-import { postForm, postJSON, fmt, round, toast, esc, checkHealth, prettyDate, todayISO, inferMealType } from './api.js';
+import { postForm, postJSON, fmt, round, toast, esc, checkHealth, prettyDate, todayISO, inferMealType, getFoodIcon } from './api.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -136,6 +136,7 @@ function renderItems() {
   $('items').innerHTML = draft.items.map((item, idx) => `
     <div class="item" data-idx="${idx}">
       <div class="row1">
+        <span class="food-icon-badge" data-badge-idx="${idx}" title="Component visual">${getFoodIcon(item.name)}</span>
         <input data-field="name" value="${esc(item.name)}" placeholder="Item name" aria-label="Item name">
         ${draft.source === 'photo' && item.confidence
           ? `<span class="chip ${esc(item.confidence)}" title="Model confidence">${esc(item.confidence)}</span>`
@@ -174,6 +175,8 @@ function onEdit(e) {
 
   if (field === 'name') {
     item.name = e.target.value;
+    const badge = e.target.closest('.item')?.querySelector(`.food-icon-badge[data-badge-idx="${idx}"]`);
+    if (badge) badge.textContent = getFoodIcon(e.target.value);
     return; // no totals impact, and re-rendering would steal focus
   }
 
