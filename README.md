@@ -1,313 +1,239 @@
-# Self-Hosted Calorie & Body Progress Tracker
+# Health App &middot; Self-Hosted, Subscription-Free Fitness Suite
 
-A private, mobile-first fitness tracker that runs entirely on your own hardware.
-No accounts, no external APIs, no subscriptions. Two features:
-
-1. **Photo calorie counter** — photograph a meal, a local vision model estimates
-   items and macros, you correct anything wrong before it is saved.
-2. **Ghost-overlay progress photos** — the previous shot for each pose is
-   overlaid on the live viewfinder so today's photo matches yesterday's framing.
+> **A private, 100% self-hosted health, nutrition, and workout suite for your homelab or local network.**  
+> Zero monthly subscriptions. Zero cloud dependencies. Zero telemetry. No accounts or credit cards required.
 
 ---
 
-## Quick start
+## Why This Exists
+
+Commercial fitness apps have shifted almost entirely to aggressive monthly paywalls and locked-down cloud silos:
+- **MyFitnessPal & LoseIt** charge \$20–\$80/year for basic macro breakdown and barcode/meal logging.
+- **MacroFactor** charges \$12/month for sports nutrition rationale and expenditure algorithms.
+- **Happy Scale & TrendWeight** charge subscriptions for moving average weight trendlines.
+- **Fitbod, Caliverse & Freeletics** charge \$80–\$120/year for equipment-tailored workout routines.
+- **Progress photo apps** charge subscriptions to store and compare photos in their cloud.
+
+**This app replaces all of them.** It runs completely on your own hardware — a Raspberry Pi, mini-PC, TrueNAS, Unraid, Proxmox VM, or regular desktop PC. Your personal health data, weigh-ins, photos, and training logs never leave your home network.
+
+---
+
+## Core Features
+
+### 🥗 1. Meal & Macro Tracking (Replaces MyFitnessPal)
+- **Local AI Vision Estimation**: Snap a photo of your meal; a local vision model (e.g. Gemma 4, Qwen2.5-VL via Ollama) estimates ingredients, portions, and macros without cloud APIs.
+- **Instant Manual Logging**: Fast manual meal and snack logging with diacritics-normalized English & Spanish keyword matching and automatic visual badges for 15+ food categories (poultry, beef, fish, eggs, rice, pasta, dairy, veggies, fruit, etc.).
+- **Daily Totals & Goals**: Dynamic calorie and macro progress bars (Protein, Carbs, Fat) with real-time remaining calorie readouts.
+
+### 💡 2. Sports Nutrition Rationale & Q&A (Replaces MacroFactor)
+- **Evidence-Based Energy Balance**: Dynamic analysis explaining your caloric deficit/surplus math, fat loss rates, and metabolic realities.
+- **Interactive Nutrition Q&A**: Tap quick chips (e.g., *"Why 2g/kg protein?"*, *"Can I lower carbs?"*, *"Why not zero fat?"*) or ask custom nutrition questions answered by sports science literature and your local model.
+
+### 🏋️ 3. Equipment Arsenal & Tailored Workout Studio (Replaces Fitbod / Caliverse)
+- **Dynamic Equipment Inventory**: Manage your available gear (Yoga Mat, Jump Rope, Pull-up Bar, Resistance Bands, Dumbbells, Kettlebell, Bench, Barbell, Dip Station, Ab Wheel, etc.) or add custom equipment.
+- **Strictly-Constrained Routine Designer**: Generates balanced workout routines (Full Body, HIIT & Cardio, Upper Body, Lower Body, Core & Mobility) from a 70+ exercise catalog. **Never prescribes exercises requiring gear you do not own.**
+- **Interactive Workout Player**: Real-time circuit tracking with checkable sets (`Set 1`, `Set 2`, `Set 3`).
+- **Built-in Interval & Rest Timer**: High-visibility digital countdown (`00:45`) with presets (`+15s`, `+30s`, `45s`, `60s`, `90s`) and an offline two-tone chime synthesized via the browser's native Web Audio API (zero external audio files).
+- **Workout History**: Logs completed sessions with duration, category, and equipment used.
+
+### 📸 4. Ghost-Overlay Camera & Alignment Comparison Studio
+- **Ghost-Overlay Viewfinder**: Overlays your previous session's photo semi-transparently over the live camera so today's framing, distance, and pose match yesterday's.
+- **Interactive Alignment & Comparison**: Side-by-side Before/After split slider defaulting to earliest vs. latest photo.
+- **Precision Nudge & Auto-Centering**: Drag-to-pan, 4-way 2px nudge buttons, zoom scaling (70%–140%), and an **Auto-Align** algorithm that calculates subject centroids to center photos automatically. Alignment offsets persist per photo.
+
+### 📈 5. Body Weight Progress & Trend Smoothing (Replaces Happy Scale)
+- **Interactive SVG Weight Graph**: Filter by `14D`, `30D`, `90D`, or `All`.
+- **7-Day Trailing Moving Average**: Automatically smooths out water weight and sodium fluctuations so you see your true trend rate.
+- **Touch & Mouse Crosshair Scrubber**: Inspect individual weigh-in data points and moving average values on hover/drag.
+
+### 👥 6. Multi-Profile Household Support
+- Switch between different members of your household with one tap.
+- Each profile maintains completely independent calorie/macro targets, weight history, progress photos, and equipment inventories.
+
+### 📱 7. Mobile-First Progressive Web App (PWA)
+- Installable on iOS (Safari: Share &rarr; *Add to Home Screen*) and Android (Chrome: *Install App*).
+- Launches fullscreen with standalone icon, app-switcher entry, and no URL bar.
+- **Android Share Target**: Share photos directly from your phone's native camera or gallery app straight into the meal logger.
+- 100% offline-first static asset caching via Service Worker.
+
+---
+
+## Quick Start (1 Command)
+
+### Option A: Docker Compose (Recommended for Homelabs, TrueNAS, Unraid, Proxmox)
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/cerrmcneel/health_app.git
+   cd health_app
+   ```
+
+2. Start the application:
+   ```bash
+   docker compose up -d
+   ```
+
+3. Open your browser:
+   - **Direct HTTP**: <http://localhost:8000> (or `http://<your-server-ip>:8000`)
+   - **Local HTTPS**: <https://localhost:8443> (or `https://<your-server-ip>:8443`) &mdash; *auto-generates self-signed TLS cert on first boot so mobile camera works immediately!*
+
+---
+
+### Option B: Native Python (Lightweight / Local Machine)
+
+Requirements: Python 3.11+
 
 ```bash
+git clone https://github.com/cerrmcneel/health_app.git
+cd health_app
+python -m venv .venv
+
+# On Linux/macOS:
+source .venv/bin/activate
+# On Windows:
+.venv\Scripts\activate
+
 pip install -r requirements.txt
-cp .env.example .env          # then edit VISION_MODEL to a model you have
+cp .env.example .env
 python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-Open <http://localhost:8000>.
-
-Check that the model is wired up correctly before relying on it:
-
-```bash
-curl -s localhost:8000/api/health
-```
-
-`model_ready: true` means Ollama is reachable and the configured model can
-actually process images. If it is false, the response carries a `hint` naming
-the problem, and every page shows a banner instead of failing silently later.
-
-### Picking a vision model
-
-The model must be **vision-capable**. List what you have:
-
-```bash
-curl -s localhost:11434/api/tags
-```
-
-Look for `"vision"` in a model's `capabilities`. If nothing qualifies:
-
-```bash
-ollama pull qwen2.5-vl:7b
-```
-
-Then set `VISION_MODEL=qwen2.5-vl:7b` in `.env`.
-
-> **Thinking models.** Reasoning models (gemma4, deepseek-r1, qwen3) spend their
-> whole token budget in a `thinking` field and return empty content. The client
-> sends `think: false` to suppress that. It falls back automatically for models
-> that reject the field.
+Navigate to <http://localhost:8000>.
 
 ---
 
-## The HTTPS requirement (read this before using the camera on your phone)
+## Is Ollama / a GPU Required?
 
-`getUserMedia` is only exposed on a **secure context**: `https://` or
-`localhost`. Browsing to `http://192.168.1.50:8000` from your phone will load
-the app fine but the camera will not open — the capture page detects this and
-tells you so rather than failing mysteriously.
+**NO! Ollama is 100% optional.**
 
-Pick one:
+| Feature | Without Ollama (Zero GPU) | With Ollama (Local AI) |
+|---|:---:|:---:|
+| **Manual Meal & Snack Logging** | &check; Full support | &check; Full support |
+| **Food Category Icon Recognition** | &check; Full support (15+ groups) | &check; Full support |
+| **Macro & Calorie Daily Dashboards** | &check; Full support | &check; Full support |
+| **Weight Tracking & Trendline Graph** | &check; Full support | &check; Full support |
+| **Ghost Overlay Camera & Photo Alignment** | &check; Full support | &check; Full support |
+| **Equipment Inventory Management** | &check; Full support | &check; Full support |
+| **Tailored Workout Generation & Timer** | &check; Full instant deterministic generator | &check; Plus optional AI Coach variations |
+| **Multi-Profile Household Management** | &check; Full support | &check; Full support |
+| **AI Photo Meal Macro Estimation** | Manual macro entry | &check; Automatic AI volume & macro estimate |
+| **Interactive Nutrition AI Q&A** | Static science literature | &check; Interactive LLM reasoning |
 
-**A. Self-signed certificate** (simplest)
+If you do not have Ollama or a GPU, the app runs smoothly as a lightweight, lightning-fast tracker. If you do have Ollama, simply point `OLLAMA_URL` in `.env` or `docker-compose.yml` to your instance.
 
+### Setting up Ollama (Optional)
+
+1. Install Ollama from [ollama.com](https://ollama.com).
+2. Pull a vision-capable model:
+   ```bash
+   ollama pull gemma4:12b
+   # or for smaller VRAM cards:
+   ollama pull qwen2.5-vl:7b
+   ```
+3. Set `OLLAMA_URL` in `.env`:
+   - Same machine (native): `http://localhost:11434`
+   - Same machine (Docker): `http://host.docker.internal:11434`
+   - Another machine on LAN: `http://192.168.1.50:11434`
+   - Over Tailscale: `http://100.x.y.z:11434`
+
+---
+
+## Adaptable to All Homelab Setups
+
+### 1. Reverse Proxies (Nginx Proxy Manager, Caddy, Traefik, Cloudflare Tunnel)
+If you already run a reverse proxy terminating SSL on your homelab, simply point your proxy at the `tracker` service on port `8000`:
+- **Forward Host**: `<your-server-ip>`
+- **Forward Port**: `8000`
+- Enable `Websockets Support` and pass `Host`, `X-Real-IP`, `X-Forwarded-For`, and `X-Forwarded-Proto https` headers.
+
+### 2. Tailscale (Zero Port Forwarding + Free Trusted SSL)
+If you use Tailscale on your homelab:
 ```bash
-pip install cryptography
-python make_cert.py 192.168.1.50          # your homelab's LAN IP
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8443 \
-    --ssl-keyfile certs/key.pem --ssl-certfile certs/cert.pem
+tailscale serve --bg --https=443 http://localhost:8000
 ```
+This serves the app at `https://<your-device>.<tailnet>.ts.net` with an automatic Let's Encrypt certificate. This allows:
+1. Access from anywhere outside the home without opening firewall ports.
+2. Trusted HTTPS that satisfies iOS and Android camera and PWA install requirements.
 
-Open `https://192.168.1.50:8443` and accept the warning once per device.
-
-**B. Tailscale / WireGuard** — reach the box over a `*.ts.net` hostname, which
-gets a real certificate. Best option if you already run either.
-
-**C. Reverse proxy** — Caddy or nginx terminating TLS in front of uvicorn.
-
-Photo *calorie* logging works fine over plain HTTP; only the live viewfinder
-needs the secure context.
-
----
-
-## Installing it as an app (no browser)
-
-The app is a PWA, so it installs to the phone's home screen and launches
-standalone — its own icon, its own app-switcher entry, no address bar.
-
-- **Android/Chrome:** menu → "Install app" (or the prompt that appears).
-- **iOS/Safari:** Share → "Add to Home Screen".
-
-Long-pressing the installed icon exposes shortcuts straight to **Log a meal** and
-**Progress photo**.
-
-**On Android you can skip the app entirely for meal logging.** The app registers
-as a share target, so: shoot the meal with your normal camera app → Share →
-Tracker → the estimate is already running when the screen opens.
-
-### This needs a *trusted* certificate
-
-Install requires a secure context, and browsers refuse to register a service
-worker over a **self-signed** certificate. So:
-
-| Setup | Camera | Installable |
-|---|---|---|
-| `http://` over LAN IP | No | No |
-| Self-signed cert (`make_cert.py`) | Yes | No |
-| Tailscale / real cert | Yes | Yes |
-
-`tailscale cert <host>.<tailnet>.ts.net` issues a real Let's Encrypt certificate,
-which gets you camera, home-screen install, and access from outside the LAN
-without forwarding a port.
-
----
-
-## Running it as a Windows service (starts with Windows)
-
-The app runs from a virtual environment invoked by absolute path, so nothing has
-to be activated and no terminal stays open.
-
+### 3. Windows Service (Auto-Start at Boot)
+To run natively in the background on a Windows machine:
 ```powershell
-python -m venv .venv
-.venv\Scripts\python.exe -m pip install -r requirements.txt
 powershell -ExecutionPolicy Bypass -File install_autostart.ps1
 ```
+This registers a scheduled background task that starts automatically with Windows, runs silently in the background without any open console window, and logs to `logs/tracker.log`.
 
-That registers a `FitnessTracker` scheduled task which:
+---
 
-- starts at logon after a 20s delay (so Ollama and Docker settle first),
-- runs `pythonw.exe`, so there is no console window,
-- restarts up to 3 times, a minute apart, if it dies,
-- never times out (`ExecutionTimeLimit` is disabled for long-running services).
+## Phone Camera Access (The HTTPS Rule)
 
-| Action | Command |
-|---|---|
-| Check | `Invoke-RestMethod http://localhost:8010/api/health \| Format-List` |
-| Logs | `Get-Content logs	racker.log -Tail 40 -Wait` |
-| Stop | `Stop-ScheduledTask -TaskName FitnessTracker` |
-| Start | `Start-ScheduledTask -TaskName FitnessTracker` |
-| Remove | `powershell -ExecutionPolicy Bypass -File install_autostart.ps1 -Uninstall` |
+Mobile web browsers (iOS Safari, Android Chrome) enforce a strict security policy: **`getUserMedia` (the camera API) is only permitted on a secure context (`https://` or `localhost`).**
 
-`pythonw.exe` has no console, so a traceback has nowhere to go. Everything is
-logged to `logs/tracker.log` (rotated, 5 x 2 MB), and a failure that happens
-before logging is configured is written to `logs/crash.log`.
+If you open `http://192.168.1.x:8000` over plain HTTP on your phone, meal logging and workouts work fine, but the browser blocks camera access.
 
-To start before any user logs in, run an **elevated** PowerShell and pass
-`-Trigger AtStartup`; the task then runs as SYSTEM. Note that Ollama itself
-starts from a per-user startup entry on this machine, so photo analysis only
-becomes available after logon either way.
+Choose one of the following to use the live camera:
+1. **Built-in HTTPS Proxy**: Open `https://<your-ip>:8443` (accept the self-signed warning once).
+2. **Tailscale**: Access via `https://<node>.<tailnet>.ts.net`.
+3. **Your Own Reverse Proxy**: Access via your local domain with valid SSL.
 
-### Serving HTTPS
+---
 
-Set `SSL_CERTFILE` and `SSL_KEYFILE` in `.env` and the service serves TLS
-directly. With Tailscale already installed, the least-effort option is to let it
-terminate TLS and manage renewal for you:
+## Storage & Backups
 
-```powershell
-tailscale serve --bg --https=443 http://localhost:8010
+Everything is stored inside a single directory:
+```
+storage/fitness_tracker/
+├── tracker.db          # SQLite database (WAL mode, foreign keys enabled)
+├── front/              # Front progress photos (YYYY-MM-DD_front.jpg)
+├── profile/            # Profile progress photos (YYYY-MM-DD_profile.jpg)
+├── meals/              # Captured meal photos (YYYY/MM/*.jpg)
+└── _pending/           # Temporary staging for unconfirmed photo analyses
 ```
 
-The app is then reachable at `https://<machine>.<tailnet>.ts.net` with a real
-certificate — which is what the camera and home-screen install both require.
+### Backing Up
+To back up your entire fitness data, simply back up the `storage/` directory:
+```bash
+tar -czvf health_app_backup_$(date +%F).tar.gz storage/
+```
+To restore, unpack it back into place. That's it!
 
 ---
 
-## Deployment
-
-See `Dockerfile` and `docker-compose.yml`; `HANDOFF.md` covers the details.
-
----
-
-## Layout
+## Project Structure
 
 ```
 Health_App/
 ├── app/
-│   ├── main.py            FastAPI app, page routes, lifespan startup
-│   ├── config.py          .env loading, paths, timezone
-│   ├── db.py              SQLite connection + schema (WAL, foreign keys)
-│   ├── models.py          Pydantic request/response models
+│   ├── main.py            # FastAPI app setup, page routes, lifecycle hooks
+│   ├── config.py          # Environment settings, directory resolution, timezone
+│   ├── db.py              # SQLite connection, schema migrations, automatic seeding
+│   ├── models.py          # Pydantic data schemas
 │   ├── routers/
-│   │   ├── meals.py       /api/analyze, /api/meals CRUD
-│   │   ├── photos.py      /api/photos, ghost lookup, /media serving
-│   │   └── stats.py       daily + range totals, settings, health
+│   │   ├── meals.py       # Meal logging & Ollama photo analysis
+│   │   ├── photos.py      # Progress photo capture, ghost retrieval & media serving
+│   │   ├── stats.py       # Macro totals, daily stats & system health
+│   │   ├── profiles.py    # Multi-profile CRUD & target preferences
+│   │   ├── weights.py     # Body weight tracking & moving averages
+│   │   ├── knowledge.py   # Nutrition science knowledge & interactive Q&A
+│   │   └── workouts.py    # Equipment inventory & strictly constrained routine designer
 │   └── services/
-│       ├── vision.py      Ollama client, system prompt, JSON schema
-│       └── images.py      EXIF rotation, downscaling, disk layout
+│       ├── images.py      # EXIF rotation, thumbnail generation & path security
+│       ├── knowledge.py   # Sports nutrition literature extractor & prompt builder
+│       └── vision.py      # Ollama client, JSON Schema constraints & fallback
 ├── static/
-│   ├── index.html         dashboard      log.html      meal logger
-│   ├── capture.html       ghost camera   progress.html photo history
-│   ├── css/app.css
-│   └── js/{api,dashboard,log,capture,progress}.js
-├── storage/fitness_tracker/     ← STORAGE_DIR
-│   ├── front/YYYY-MM-DD_front.jpg
-│   ├── profile/YYYY-MM-DD_profile.jpg
-│   ├── meals/YYYY/MM/*.jpg
-│   ├── _pending/                analysed but not yet confirmed
-│   └── tracker.db
-└── make_cert.py
+│   ├── index.html         # Dashboard (calorie ring, macros, today's workout)
+│   ├── log.html           # Meal logger (photo analysis + manual entry)
+│   ├── workout.html       # Workout Studio (gear inventory, designer, rest timer)
+│   ├── progress.html      # Weight graph & photo alignment comparison studio
+│   ├── capture.html       # Ghost-overlay camera viewfinder
+│   ├── css/app.css        # Mobile-first dark theme CSS (zero external CDNs)
+│   └── js/                # Native ES modules (api, dashboard, log, workout, progress, capture)
+├── Dockerfile             # Multi-stage container definition
+├── docker-compose.yml     # Universal homelab compose file with auto-cert SSL
+└── README.md              # Documentation
 ```
 
-Set `STORAGE_DIR=/storage/fitness_tracker` in `.env` on a Linux homelab to get
-the exact folder convention there.
-
 ---
 
-## API
+## License
 
-| Method | Path | Purpose |
-|---|---|---|
-| `POST` | `/api/analyze` | Meal photo → macro estimate. **Writes nothing.** Returns a `pending_image` token. |
-| `POST` | `/api/meals` | Commit a reviewed meal; claims the pending photo. |
-| `GET` | `/api/meals?day=` | Meals for a day (default today). |
-| `GET` | `/api/meals/{id}` | One meal with items and totals. |
-| `PATCH` | `/api/meals/{id}` | Edit fields; supplying `items` replaces the list. |
-| `DELETE` | `/api/meals/{id}` | Remove a meal (the photo on disk is kept). |
-| `GET` | `/api/stats/daily?day=` | Totals, targets, remaining. |
-| `GET` | `/api/stats/range?days=` | Dense day-by-day series (gaps as zeros). |
-| `GET`/`PUT` | `/api/settings` | Daily macro targets. |
-| `GET` | `/api/photos/ghost?pose=` | Most recent photo for a pose, **excluding today**. |
-| `GET` | `/api/photos/status` | Which poses are done today. |
-| `GET` | `/api/photos?pose=&limit=` | Photo history. |
-| `POST` | `/api/photos` | Save a capture; upserts on `(day, pose)`. |
-| `GET` | `/media/{path}` | Serve a stored image (traversal-guarded). |
-| `GET` | `/api/health` | Ollama reachability + model capability. |
-
-Interactive docs at `/docs`.
-
-### Why analyse and log are separate calls
-
-`/api/analyze` is deliberately read-only. The model is an estimator, not an
-oracle — separating the calls guarantees you always get an editable card before
-anything reaches the database. The photo waits in `_pending/` and is claimed by
-token on confirm; unconfirmed images are purged after 24h at startup.
-
----
-
-## Schema
-
-```
-meals(id, day, logged_at, name, meal_type, source, image_path, model, notes, raw_json)
-meal_items(id, meal_id→meals, name, grams, calories, protein_g, carbs_g, fat_g, confidence, position)
-progress_photos(id, day, taken_at, pose, path, width, height, bytes)   UNIQUE(day, pose)
-settings(id=1, calorie_target, protein_target, carbs_target, fat_target)
-v_daily_totals  -- VIEW: per-day sums
-```
-
-Two deliberate choices:
-
-- **Daily totals are a view, not a table.** Storing them would let an edited meal
-  drift out of sync with the day's headline number. SQLite aggregates a few
-  thousand rows instantly; there is nothing to gain by caching it.
-- **`raw_json` keeps the model's unedited output.** When an estimate looks wrong
-  months later you can see what the model actually said versus what you changed.
-
----
-
-## How the estimate is made reliable
-
-Local vision models are enthusiastic and imprecise. Four things constrain them:
-
-1. **A JSON Schema passed as Ollama's `format`.** Decoding is constrained to the
-   schema, so no code-fence scraping. Without it the model invents its own shape.
-2. **A procedural system prompt.** It forces the model to scale the scene against
-   a known reference object (plate, fork, can) *before* estimating volume, then
-   convert volume to mass by density. Each item reports the reference it used in
-   `basis`, which is shown in the UI — an estimate you can audit beats a number
-   you cannot.
-3. **Server-side arithmetic enforcement.** If stated calories disagree with
-   `4P + 4C + 9F` by more than 15%, the macros win. They are estimated
-   per-component; the calorie figure tends to be recalled wholesale.
-4. **A mandatory human review step.** Nothing is saved until you confirm it.
-
-Editing any macro in the review card re-derives that item's calories live.
-Editing the calorie field directly is left alone, since you may be copying a
-label value.
-
-The prompt lives in `SYSTEM_PROMPT` in [`app/services/vision.py`](app/services/vision.py).
-Tune the density and portion heuristics there to your own cooking.
-
----
-
-## Ghost overlay: the alignment contract
-
-The live video, the ghost image, and the saved JPEG are all full camera frames
-of the same aspect ratio, rendered with `object-fit: cover`. Because every layer
-is cropped identically, whatever lines up on screen lines up in the stored file
-— so tomorrow's ghost is a faithful reference.
-
-- The ghost excludes **today's** shot, so re-taking a pose aligns against your
-  last session rather than the attempt you are replacing.
-- Opacity is adjustable 0–70% (default 35%).
-- With no prior photo for a pose, a rule-of-thirds grid is the alignment aid.
-- Front → profile advances automatically; a self-timer (0/3/10s) gives you time
-  to step back.
-- Selfie-camera captures are mirrored to match the preview, so photos do not
-  flip between sessions.
-
----
-
-## Notes
-
-- **Timezone matters.** `TZ` in `.env` decides where the day boundary falls. A
-  late-night meal lands on the right day only if this is set correctly.
-- **Back up `storage/`.** It holds the database and every photo. There is no
-  cloud copy — that is the point.
-- **Resetting.** Deleting `storage/fitness_tracker/` wipes everything; the schema
-  is recreated on next start.
-- **Concurrency.** WAL mode plus a 5s busy timeout is ample for household use.
-  Database endpoints are sync `def` so FastAPI runs them in a threadpool; only
-  the Ollama call is `async`, which is where the async win actually is.
+Open source and free forever. Built for everyone who values their health and privacy over monthly SaaS subscriptions.
