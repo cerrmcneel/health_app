@@ -88,11 +88,40 @@ CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_docs USING fts5(
     content,
     tags
 );
+
+CREATE TABLE IF NOT EXISTS profile_equipment (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    profile_id  INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    item_key    TEXT    NOT NULL,
+    name        TEXT    NOT NULL,
+    acquired_at TEXT    NOT NULL,
+    notes       TEXT    NOT NULL DEFAULT '',
+    UNIQUE (profile_id, item_key)
+);
+CREATE INDEX IF NOT EXISTS idx_equip_profile ON profile_equipment(profile_id);
+
+CREATE TABLE IF NOT EXISTS workouts (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    profile_id     INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    day            TEXT    NOT NULL,
+    logged_at      TEXT    NOT NULL,
+    title          TEXT    NOT NULL,
+    category       TEXT    NOT NULL DEFAULT 'full_body',
+    duration_min   INTEGER NOT NULL DEFAULT 20,
+    intensity      TEXT    NOT NULL DEFAULT 'medium',
+    equipment_used TEXT    NOT NULL DEFAULT '',
+    routine_json   TEXT    NOT NULL DEFAULT '[]',
+    completed      INTEGER NOT NULL DEFAULT 1,
+    notes          TEXT    NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_workouts_profile_day ON workouts(profile_id, day DESC);
 """
 
 AFTER_MIGRATE_SCHEMA = """
 CREATE INDEX IF NOT EXISTS idx_meals_profile_day ON meals(profile_id, day);
 CREATE INDEX IF NOT EXISTS idx_photos_profile_pose_day ON progress_photos(profile_id, pose, day DESC);
+CREATE INDEX IF NOT EXISTS idx_equip_profile ON profile_equipment(profile_id);
+CREATE INDEX IF NOT EXISTS idx_workouts_profile_day ON workouts(profile_id, day DESC);
 
 -- Daily totals are derived, never stored, so edits to a meal can never drift
 -- out of sync with the day's headline number.
@@ -109,7 +138,6 @@ FROM meals m
 JOIN meal_items i ON i.meal_id = m.id
 GROUP BY m.profile_id, m.day;
 """
-
 
 def connect() -> sqlite3.Connection:
     conn = sqlite3.connect(config.DB_PATH, timeout=10.0)
@@ -211,6 +239,22 @@ def _migrate(conn: sqlite3.Connection) -> None:
         """CREATE UNIQUE INDEX IF NOT EXISTS ux_photos_profile_day_pose
            ON progress_photos(profile_id, day, pose)"""
     )
+
+    # Seed initial equipment (Yoga Mat, Jump Rope) for profiles if empty
+    now_str = config.now().isoformat()
+    profiles = conn.execute("SELECT id FROM profiles").fetchall()
+    for p in profiles:
+        count = conn.execute(
+            "SELECT COUNT(*) as c FROM profile_equipment WHERE profile_id = ?", (p["id"],)
+        ).fetchone()["c"]
+        if count == 0:
+            conn.execute(
+                """INSERT OR IGNORE INTO profile_equipment (profile_id, item_key, name, acquired_at)
+                   VALUES (?, 'yoga_mat', 'Yoga Mat', ?),
+                          (?, 'jump_rope', 'Jump Rope', ?)""",
+                (p["id"], now_str, p["id"], now_str),
+            )
+
 
 
 def init_db() -> None:

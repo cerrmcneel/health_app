@@ -15,11 +15,12 @@ const SHARE_CACHE = 'shared-image';
 const SHARE_KEY = '/__shared-image';
 
 const SHELL = [
-  '/', '/log', '/capture', '/progress',
+  '/', '/log', '/workout', '/capture', '/progress',
   '/static/css/app.css',
   '/static/js/api.js',
   '/static/js/dashboard.js',
   '/static/js/log.js',
+  '/static/js/workout.js',
   '/static/js/capture.js',
   '/static/js/progress.js',
   '/static/icons/icon-192.png',

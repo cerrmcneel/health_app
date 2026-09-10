@@ -81,3 +81,29 @@ class WeightIn(BaseModel):
     day: date | None = None
     notes: str = Field(default="", max_length=300)
 
+
+class EquipmentIn(BaseModel):
+    item_key: str = Field(min_length=1, max_length=60)
+    name: str = Field(min_length=1, max_length=80)
+    notes: str = Field(default="", max_length=200)
+
+
+class WorkoutGenerateIn(BaseModel):
+    category: str = Field(default="full_body")
+    duration_min: int = Field(default=25, ge=10, le=90)
+    level: str = Field(default="intermediate")
+    custom_prompt: str | None = Field(default=None, max_length=500)
+
+
+class WorkoutLogIn(BaseModel):
+    title: str = Field(min_length=1, max_length=120)
+    category: str = Field(default="full_body")
+    duration_min: int = Field(default=20, ge=1, le=300)
+    intensity: str = Field(default="medium")
+    equipment_used: list[str] = Field(default_factory=list)
+    routine: list | dict = Field(default_factory=list)
+    routine_json: list | dict | None = None
+    day: date | None = None
+    notes: str = Field(default="", max_length=500)
+
+

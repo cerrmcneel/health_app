@@ -150,7 +150,7 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin
 /* --- nav --- */
 nav.bottom {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
-  display: grid; grid-template-columns: repeat(4, 1fr);
+  display: grid; grid-template-columns: repeat(5, 1fr);
   background: rgba(15,17,21,.94); backdrop-filter: blur(12px);
   border-top: 1px solid var(--line);
   padding-bottom: env(safe-area-inset-bottom);
@@ -1004,5 +1004,347 @@ details.compare-customize[open] summary {
   margin-bottom: 10px;
   color: var(--text);
 }
+
+/* ==========================================================================
+   WORKOUT & EQUIPMENT ARSENAL STYLES
+   ========================================================================== */
+
+/* --- Equipment Arsenal Grid --- */
+.equip-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.equip-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--accent-dim);
+  color: var(--accent);
+  padding: 3px 8px;
+  border-radius: 99px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.equip-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+.equip-chip {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px;
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color .15s ease, background-color .15s ease, transform .1s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: relative;
+}
+.equip-chip:active {
+  transform: scale(0.98);
+}
+.equip-chip.active {
+  border-color: var(--accent);
+  background: rgba(74, 222, 128, 0.08);
+}
+.equip-chip .chip-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.equip-chip .chip-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+.equip-chip .chip-status {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: transparent;
+  transition: all .15s ease;
+}
+.equip-chip.active .chip-status {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0f1115;
+  font-weight: bold;
+}
+.equip-chip .chip-name {
+  font-size: 12.5px;
+  font-weight: 550;
+  color: var(--text);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.equip-chip .chip-sub {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* --- Generator Selectors --- */
+.pill-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 14px;
+}
+.pill-btn {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  border-radius: 99px;
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.pill-btn:hover {
+  border-color: var(--text);
+  color: var(--text);
+}
+.pill-btn.active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* --- Workout Routine Display --- */
+.workout-header-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.workout-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.workout-title {
+  font-size: 18px;
+  font-weight: 650;
+  color: var(--text);
+  margin: 0;
+}
+.workout-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+.workout-tag {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11.5px;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+.workout-tag.accent {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.phase-container {
+  margin-top: 14px;
+}
+.phase-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+}
+.phase-heading.warmup { color: #fb923c; border-color: rgba(251, 146, 60, 0.2); }
+.phase-heading.main { color: var(--accent); border-color: rgba(74, 222, 128, 0.2); }
+.phase-heading.cooldown { color: #38bdf8; border-color: rgba(56, 189, 248, 0.2); }
+
+.exercise-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.exercise-item {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  transition: border-color .15s ease;
+}
+.exercise-item.completed {
+  border-color: var(--accent);
+  background: rgba(74, 222, 128, 0.04);
+}
+.exercise-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.exercise-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.exercise-prescription {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-dim);
+  padding: 2px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+.exercise-sub {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.exercise-sets-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--line);
+}
+.set-dot-btn {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  border-radius: 6px;
+  font-size: 11.5px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.set-dot-btn.done {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0f1115;
+  font-weight: bold;
+}
+.instructions-toggle {
+  font-size: 11.5px;
+  color: var(--muted);
+  cursor: pointer;
+  margin-top: 6px;
+  display: inline-block;
+  user-select: none;
+}
+.instructions-toggle:hover {
+  color: var(--text);
+}
+.instructions-box {
+  margin-top: 6px;
+  padding: 8px;
+  background: var(--surface);
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+/* --- Built-in Interval / Rest Timer --- */
+.workout-timer-box {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px;
+  margin: 14px 0;
+  text-align: center;
+}
+.timer-digits {
+  font-size: 42px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  margin: 4px 0 10px;
+}
+.timer-digits.active {
+  color: var(--accent);
+}
+.timer-ctrls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.timer-presets {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+.timer-preset-btn {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.timer-preset-btn:hover {
+  color: var(--text);
+  border-color: var(--text);
+}
+
+/* --- Workout History Log --- */
+.workout-log-item {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.workout-log-item .w-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.workout-log-item .w-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.workout-log-item .w-meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+
 
 

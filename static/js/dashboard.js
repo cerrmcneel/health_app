@@ -253,14 +253,40 @@ async function loadDay() {
   $('day-iso').textContent = day;
   $('next').disabled = day >= todayISO();
 
-  const [stats, meals] = await Promise.all([
+  const [stats, meals, workoutsData] = await Promise.all([
     getJSON(`/api/stats/daily?day=${day}`),
     getJSON(`/api/meals?day=${day}`),
+    getJSON(`/api/workouts?day=${day}`).catch(() => ({ workouts: [] })),
   ]);
 
   renderTotals(stats);
   renderMeals(meals.meals);
+  renderTodayWorkout(workoutsData?.workouts || []);
   fillTargetsModal(stats.targets);
+}
+
+function renderTodayWorkout(workouts) {
+  const preview = $('today-workout-preview');
+  if (!preview) return;
+  if (!workouts.length) {
+    preview.innerHTML = '<div class="muted" style="font-size:13px">No workout completed yet today.</div>';
+    return;
+  }
+  const w = workouts[0];
+  const count = workouts.length;
+  preview.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px">
+      <div>
+        <div style="font-size:14px;font-weight:600;color:var(--text)">${esc(w.title)}</div>
+        <div class="muted" style="font-size:12px;margin-top:2px">
+          <span>⏱️ ${w.duration_min} min</span> &bull;
+          <span>⚡ ${esc(w.intensity)}</span>
+          ${count > 1 ? `<span> &bull; +${count - 1} more</span>` : ''}
+        </div>
+      </div>
+      <span style="color:var(--accent);font-size:18px;font-weight:bold" title="Completed">✓</span>
+    </div>
+  `;
 }
 
 function renderTotals({ totals, targets, remaining }) {

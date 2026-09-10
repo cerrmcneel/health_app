@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1115">
+<title>Training Studio &middot; Tracker</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+<link rel="icon" href="/static/icons/favicon-32.png" sizes="32x32">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tracker">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Training Studio</h1>
+      <div class="date" id="today"></div>
+    </div>
+  </header>
+
+  <!-- Equipment Inventory Section -->
+  <section class="card" id="equip-card">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <h2>My Equipment Inventory</h2>
+      <button type="button" class="meal-btn" id="btn-add-custom-gear" style="margin-top:-6px">+ Add Gear</button>
+    </div>
+    <div class="equip-summary">
+      <span>Toggled gear available for workouts:</span>
+      <span class="equip-badge" id="equip-count-badge">0 items</span>
+    </div>
+    <div class="equip-grid" id="equip-grid">
+      <div class="muted" style="font-size:13px">Loading equipment...</div>
+    </div>
+  </section>
+
+  <!-- Workout Generator Controls -->
+  <section class="card" id="generator-card">
+    <h2>Design Workout</h2>
+    <p class="muted" style="font-size:12.5px;margin:-4px 0 10px">
+      Generates custom, balanced routines strictly constrained to your owned equipment.
+    </p>
+
+    <label style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Focus Area</label>
+    <div class="pill-group" id="focus-pills">
+      <button type="button" class="pill-btn active" data-val="full_body">Full Body</button>
+      <button type="button" class="pill-btn" data-val="hiit">HIIT &amp; Cardio</button>
+      <button type="button" class="pill-btn" data-val="upper">Upper Body</button>
+      <button type="button" class="pill-btn" data-val="lower">Lower Body</button>
+      <button type="button" class="pill-btn" data-val="core_mobility">Core &amp; Mobility</button>
+    </div>
+
+    <label style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Target Duration</label>
+    <div class="pill-group" id="duration-pills">
+      <button type="button" class="pill-btn" data-val="15">15 min (Express)</button>
+      <button type="button" class="pill-btn active" data-val="25">25 min (Standard)</button>
+      <button type="button" class="pill-btn" data-val="40">40 min (Deep)</button>
+    </div>
+
+    <label style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Intensity Level</label>
+    <div class="pill-group" id="level-pills">
+      <button type="button" class="pill-btn active" data-val="beginner">Beginner</button>
+      <button type="button" class="pill-btn" data-val="intermediate">Intermediate</button>
+      <button type="button" class="pill-btn" data-val="advanced">Advanced</button>
+    </div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin:12px 0 14px;padding:10px 12px;background:var(--surface-2);border-radius:10px;border:1px solid var(--line)">
+      <div>
+        <div style="font-size:13px;font-weight:600;color:var(--text)">AI Coach Assistant</div>
+        <div class="muted" style="font-size:11.5px">Use local Gemma model to formulate dynamic variations</div>
+      </div>
+      <label style="position:relative;display:inline-block;width:44px;height:24px;cursor:pointer">
+        <input type="checkbox" id="toggle-ai-coach" style="opacity:0;width:0;height:0">
+        <span id="ai-toggle-slider" style="position:absolute;cursor:pointer;inset:0;background:var(--surface);border:1px solid var(--line);border-radius:24px;transition:.2s"></span>
+      </label>
+    </div>
+
+    <div class="btn-row">
+      <button type="button" class="btn btn-primary full" id="btn-generate-workout">Generate Workout</button>
+    </div>
+  </section>
+
+  <!-- Active Workout Session Card (Hidden until generated) -->
+  <section class="card hidden" id="routine-card">
+    <div class="workout-header-card">
+      <div class="workout-title-row">
+        <div>
+          <h2 style="margin:0 0 4px;color:var(--accent)">Active Workout Routine</h2>
+          <h3 class="workout-title" id="routine-title">Full Body Calisthenics</h3>
+        </div>
+        <button type="button" class="meal-btn" id="btn-reroll-routine" title="Generate another routine">Reroll ⟳</button>
+      </div>
+      <div class="workout-tags" id="routine-tags"></div>
+      <div id="routine-description" class="muted" style="font-size:12.5px;margin-top:4px"></div>
+    </div>
+
+    <!-- Rest / Interval Timer Widget -->
+    <div class="workout-timer-box">
+      <div style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:600">Rest &amp; Interval Timer</div>
+      <div class="timer-digits" id="timer-digits">00:45</div>
+      <div class="timer-ctrls">
+        <button type="button" class="btn btn-primary btn-sm" id="btn-timer-toggle">Start</button>
+        <button type="button" class="btn btn-sm" id="btn-timer-reset">Reset</button>
+      </div>
+      <div class="timer-presets">
+        <button type="button" class="timer-preset-btn" data-sec="15">+15s</button>
+        <button type="button" class="timer-preset-btn" data-sec="30">+30s</button>
+        <button type="button" class="timer-preset-btn" data-sec="45">45s</button>
+        <button type="button" class="timer-preset-btn" data-sec="60">60s</button>
+        <button type="button" class="timer-preset-btn" data-sec="90">90s</button>
+      </div>
+    </div>
+
+    <!-- Structured Exercise Phases -->
+    <div id="phases-container">
+      <!-- Warmup Phase -->
+      <div class="phase-container" id="phase-warmup">
+        <div class="phase-heading warmup">
+          <span>🔥 Warm-up</span>
+          <span style="font-size:11px;color:var(--muted);margin-left:auto" id="warmup-count">3 exercises</span>
+        </div>
+        <div class="exercise-list" id="warmup-list"></div>
+      </div>
+
+      <!-- Main Routine Phase -->
+      <div class="phase-container" id="phase-main" style="margin-top:16px">
+        <div class="phase-heading main">
+          <span>⚡ Main Circuit / Sets</span>
+          <span style="font-size:11px;color:var(--muted);margin-left:auto" id="main-count">4 exercises</span>
+        </div>
+        <div class="exercise-list" id="main-list"></div>
+      </div>
+
+      <!-- Cooldown Phase -->
+      <div class="phase-container" id="phase-cooldown" style="margin-top:16px">
+        <div class="phase-heading cooldown">
+          <span>🧘 Cooldown &amp; Mobility</span>
+          <span style="font-size:11px;color:var(--muted);margin-left:auto" id="cooldown-count">2 exercises</span>
+        </div>
+        <div class="exercise-list" id="cooldown-list"></div>
+      </div>
+    </div>
+
+    <!-- Action Bar -->
+    <div class="btn-row" style="margin-top:20px">
+      <button type="button" class="btn btn-primary full" id="btn-complete-workout">Log &amp; Complete Workout</button>
+      <button type="button" class="btn" id="btn-dismiss-workout" style="flex:none">Dismiss</button>
+    </div>
+  </section>
+
+  <!-- Workout History -->
+  <section class="card" id="history-card">
+    <h2>Workout History</h2>
+    <div id="workout-history-list">
+      <div class="empty">No workouts logged yet.</div>
+    </div>
+  </section>
+</div>
+
+<!-- Modal: Add Custom Gear -->
+<div id="add-gear-modal" class="modal-overlay hidden">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3>Add Custom Equipment</h3>
+      <button class="modal-close" data-close="add-gear-modal">&times;</button>
+    </div>
+    <form id="add-gear-form">
+      <div class="field">
+        <label for="custom-gear-name">Equipment Name</label>
+        <input type="text" id="custom-gear-name" placeholder="e.g. Gymnastic Rings, TRX, Medicine Ball" required>
+      </div>
+      <div class="field" style="margin-top:12px">
+        <label for="custom-gear-notes">Notes / Specs (Optional)</label>
+        <input type="text" id="custom-gear-notes" placeholder="e.g. 10kg, ceiling mounted, etc.">
+      </div>
+      <button type="submit" class="btn btn-primary full" style="margin-top:16px" id="btn-save-custom-gear">Add to Inventory</button>
+    </form>
+  </div>
+</div>
+
+<nav class="bottom">
+  <a href="/"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>Today</a>
+  <a href="/log"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Log</a>
+  <a href="/workout" class="active"><svg viewBox="0 0 24 24"><path d="M2 10v4M22 10v4M5 7v10M19 7v10M5 12h14"/></svg>Train</a>
+  <a href="/capture"><svg viewBox="0 0 24 24"><path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="13" r="3.6"/></svg>Capture</a>
+  <a href="/progress"><svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16"/><path d="M8 16v-5M13 16V8M18 16v-3"/></svg>Progress</a>
+</nav>
+
+<script type="module" src="/static/js/workout.js"></script>
+</body>
+</html>
