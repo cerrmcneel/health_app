@@ -11,8 +11,12 @@ def slugify(text: str) -> str:
 
 
 def get_profile_id(request: Request, conn: sqlite3.Connection) -> int:
-    """Extract and validate the active profile ID from headers or query params."""
-    raw = request.headers.get("X-Profile-ID") or request.query_params.get("profile_id")
+    """Extract and validate the active profile ID from headers, query params, or cookies."""
+    raw = (
+        request.headers.get("X-Profile-ID")
+        or request.query_params.get("profile_id")
+        or request.cookies.get("active_profile_id")
+    )
     if raw:
         try:
             pid = int(raw)

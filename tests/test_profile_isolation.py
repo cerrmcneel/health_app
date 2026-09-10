@@ -92,10 +92,16 @@ def test_progress_photo_is_profile_isolated(client, second_profile, default_prof
     photo_url = res.json()["photo"]["url"]
 
     owner_res = client.get(photo_url, headers={"X-Profile-ID": str(second_profile["id"])})
-    assert owner_res.status_code == 200
+    # Browser <img> requests send active_profile_id cookie without custom headers
+    client.cookies.set("active_profile_id", str(second_profile["id"]))
+    cookie_res = client.get(photo_url)
+    assert cookie_res.status_code == 200
 
-    other_res = client.get(photo_url, headers={"X-Profile-ID": str(default_profile_id)})
-    assert other_res.status_code == 404
+    # If cookie points to another profile, photo is blocked
+    client.cookies.set("active_profile_id", str(default_profile_id))
+    blocked_res = client.get(photo_url)
+    assert blocked_res.status_code == 404
+    client.cookies.clear()
 
 
 

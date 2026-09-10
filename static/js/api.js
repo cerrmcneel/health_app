@@ -5,9 +5,22 @@ export function getActiveProfileId() {
 }
 
 export function setActiveProfileId(id) {
-  if (id) localStorage.setItem('active_profile_id', String(id));
-  else localStorage.removeItem('active_profile_id');
+  if (id) {
+    localStorage.setItem('active_profile_id', String(id));
+    document.cookie = `active_profile_id=${encodeURIComponent(id)}; path=/; SameSite=Lax; max-age=31536000`;
+  } else {
+    localStorage.removeItem('active_profile_id');
+    document.cookie = 'active_profile_id=; path=/; max-age=0';
+  }
 }
+
+// Ensure active_profile_id cookie is present for direct browser requests (like img tags)
+try {
+  const _initPid = getActiveProfileId();
+  if (_initPid) {
+    document.cookie = `active_profile_id=${encodeURIComponent(_initPid)}; path=/; SameSite=Lax; max-age=31536000`;
+  }
+} catch { /* ignore in non-browser environments */ }
 
 export async function api(path, options = {}) {
   const headers = { ...(options.headers || {}) };
