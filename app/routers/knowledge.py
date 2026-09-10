@@ -24,7 +24,9 @@ async def get_balance_explanation(
     day_str = day or config.today_iso()
     with get_conn() as conn:
         profile_id = get_profile_id(request, conn)
-        return await knowledge.explain_balance(conn, profile_id, day_str)
+        snapshot = knowledge.get_personal_snapshot(conn, profile_id, day_str)
+        docs = knowledge.search_knowledge(conn, "macronutrients protein fats carbohydrates energy balance", limit=4)
+    return await knowledge.explain_balance(snapshot, docs)
 
 
 @router.post("/ask")
@@ -36,7 +38,9 @@ async def ask_nutrition_question(
     day_str = body.day or config.today_iso()
     with get_conn() as conn:
         profile_id = get_profile_id(request, conn)
-        return await knowledge.ask_nutrition_question(conn, profile_id, day_str, body.question)
+        snapshot = knowledge.get_personal_snapshot(conn, profile_id, day_str)
+        docs = knowledge.search_knowledge(conn, body.question, limit=3)
+    return await knowledge.ask_nutrition_question(snapshot, docs, body.question)
 
 
 @router.get("/sources")

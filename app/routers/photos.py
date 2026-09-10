@@ -1,4 +1,4 @@
-"""Progress photo capture, ghost-reference lookup, and media serving."""
+import logging
 from datetime import date
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
@@ -9,6 +9,7 @@ from app.db import get_conn
 from app.deps import get_profile, get_profile_id
 from app.services import images
 
+log = logging.getLogger(__name__)
 router = APIRouter(tags=["photos"])
 
 
@@ -93,8 +94,10 @@ async def create_photo(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     with get_conn() as conn:
+        # `path` is needed below to unlink the replaced file; selecting only `id`
+        # made that lookup raise, which rolled the retake back with a 500.
         existing = conn.execute(
-            "SELECT id FROM progress_photos WHERE profile_id = ? AND day = ? AND pose = ?",
+            "SELECT id, path FROM progress_photos WHERE profile_id = ? AND day = ? AND pose = ?",
             (profile_id, target_day, pose),
         ).fetchone()
 
@@ -105,6 +108,13 @@ async def create_photo(
                 (config.now().isoformat(), rel, w, h, size, existing["id"]),
             )
             photo_id = existing["id"]
+            if existing["path"] != rel:
+                try:
+                    old_target = images.resolve_media(existing["path"])
+                    if old_target.is_file():
+                        old_target.unlink()
+                except (OSError, images.ImageError) as exc:
+                    log.warning("Could not unlink old photo file %s: %s", existing["path"], exc)
         else:
             cur = conn.execute(
                 """INSERT INTO progress_photos (profile_id, day, taken_at, pose, path, width, height, bytes)
@@ -136,8 +146,8 @@ def delete_photo(request: Request, photo_id: int):
             target = images.resolve_media(row["path"])
             if target.is_file():
                 target.unlink()
-        except Exception:
-            pass
+        except (OSError, images.ImageError) as exc:
+            log.warning("Could not unlink deleted photo file %s: %s", row["path"], exc)
 
 
 @router.post("/api/photos/{photo_id}/rotate")
@@ -182,12 +192,24 @@ def rotate_photo(request: Request, photo_id: int):
 
 
 @router.get("/media/{path:path}")
-def media(path: str):
-    """Serve a stored image. Paths are validated against traversal."""
+def media(request: Request, path: str):
+    """Serve a stored image. Paths are validated against traversal and profile ownership."""
     try:
         target = images.resolve_media(path)
     except images.ImageError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    norm_path = path.replace("\\", "/").lstrip("/")
+    if norm_path.startswith(("front/", "profile/")):
+        with get_conn() as conn:
+            profile_id = get_profile_id(request, conn)
+            row = conn.execute(
+                "SELECT profile_id FROM progress_photos WHERE path = ?",
+                (norm_path,),
+            ).fetchone()
+            if not row or row["profile_id"] != profile_id:
+                raise HTTPException(status_code=404, detail="Image not found.")
+
     if not target.is_file():
         raise HTTPException(status_code=404, detail="Image not found.")
     return FileResponse(target, media_type="image/jpeg")

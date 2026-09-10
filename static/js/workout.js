@@ -167,7 +167,7 @@ async function toggleEquipment(key, name, currentlyOwned) {
 }
 
 // --- Generator UI Pill Controls ---
-function initPills() {
+async function initPills() {
   const groups = ['focus-pills', 'duration-pills', 'level-pills'];
   groups.forEach((groupId) => {
     const el = $(groupId);
@@ -179,6 +179,33 @@ function initPills() {
       });
     });
   });
+
+  try {
+    const pData = await getJSON('/api/profiles');
+    const active = (pData.profiles || []).find(p => p.is_active);
+    if (active) {
+      if (active.preferred_duration_min) {
+        const durEl = $('duration-pills');
+        if (durEl) {
+          const match = durEl.querySelector(`.pill-btn[data-val="${active.preferred_duration_min}"]`);
+          if (match) {
+            durEl.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
+            match.classList.add('active');
+          }
+        }
+      }
+      if (active.preferred_level) {
+        const lvlEl = $('level-pills');
+        if (lvlEl) {
+          const match = lvlEl.querySelector(`.pill-btn[data-val="${active.preferred_level}"]`);
+          if (match) {
+            lvlEl.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
+            match.classList.add('active');
+          }
+        }
+      }
+    }
+  } catch (err) {}
 }
 
 function getPillValue(groupId, fallback) {
@@ -196,7 +223,9 @@ function initGenerator() {
   genBtn.addEventListener('click', async () => {
     const category = getPillValue('focus-pills', 'full_body');
     const duration_min = parseInt(getPillValue('duration-pills', '25'), 10);
-    const intensity = getPillValue('level-pills', 'intermediate');
+    // The API field is `level`. Posting `intensity` here meant Pydantic silently
+    // dropped it and every routine came out at the default difficulty.
+    const level = getPillValue('level-pills', 'intermediate');
     const useAi = $('toggle-ai-coach')?.checked || false;
 
     genBtn.disabled = true;
@@ -207,13 +236,19 @@ function initGenerator() {
       const res = await postJSON(endpoint, {
         category,
         duration_min,
-        intensity,
+        level,
       });
 
       renderRoutine(res);
       $('routine-card').classList.remove('hidden');
       $('routine-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
-      toast('Routine designed successfully!');
+
+      // Falling back silently after a 3-minute wait looks like the AI ran.
+      if (useAi && res.generator === 'offline-fallback') {
+        toast('AI coach unavailable — used the offline designer.', true);
+      } else {
+        toast('Routine designed successfully!');
+      }
     } catch (err) {
       toast(`Generation error: ${err.message}`, true);
     } finally {
@@ -266,26 +301,64 @@ function initGenerator() {
 }
 
 // --- Render Workout Routine ---
+//
+// Every field read here must exist on the payload from /api/workouts/generate.
+// An exercise is:
+//   { id, name, category, equipment: string, phase, type: 'time'|'reps',
+//     default_target: string, target_muscles: string, instructions }
+// Note `equipment` and `target_muscles` are single strings, not arrays, and the
+// prescription is the pre-formatted `default_target` -- there are no per-exercise
+// sets/reps/duration fields. tests/test_workout_contract.py enforces this.
 function renderRoutine(routine) {
   activeRoutineData = routine;
 
-  $('routine-title').textContent = routine.title;
-  $('routine-description').textContent = routine.description || '';
+  $('routine-title').textContent = routine.title || 'Your Workout';
+  $('routine-description').textContent = routine.coaching_advice || routine.description || '';
+
+  // The AI path is free-form enough that any of these can be absent; the
+  // deterministic generator always supplies them.
+  const category = String(routine.category || 'workout').replace(/_/g, ' ').toUpperCase();
+  const equipUsed = Array.isArray(routine.equipment_used) && routine.equipment_used.length
+    ? routine.equipment_used.map(prettyEquip).join(', ')
+    : 'Bodyweight only';
 
   const tagsContainer = $('routine-tags');
   tagsContainer.innerHTML = `
-    <span class="workout-tag accent">${esc(routine.category.replace('_', ' ').toUpperCase())}</span>
-    <span class="workout-tag">⏱️ ${routine.duration_min} min</span>
-    <span class="workout-tag">⚡ ${esc(routine.intensity)}</span>
-    <span class="workout-tag">🛠️ ${routine.equipment_used?.length ? routine.equipment_used.join(', ') : 'Bodyweight only'}</span>
+    <span class="workout-tag accent">${esc(category)}</span>
+    ${routine.duration_min ? `<span class="workout-tag">⏱️ ${esc(routine.duration_min)} min</span>` : ''}
+    ${routine.intensity ? `<span class="workout-tag">⚡ ${esc(routine.intensity)}</span>` : ''}
+    <span class="workout-tag">🛠️ ${esc(equipUsed)}</span>
+    ${routine.work_rest ? `<span class="workout-tag">🔁 ${esc(routine.work_rest)}</span>` : ''}
   `;
 
-  renderExercisePhase('warmup', routine.warmup || []);
-  renderExercisePhase('main', routine.main || []);
-  renderExercisePhase('cooldown', routine.cooldown || []);
+  // Only the main circuit is performed for multiple rounds. Warm-ups and
+  // cool-downs are done once -- offering "Set 1 / Set 2 / Set 3" against a
+  // hamstring stretch is nonsense.
+  const rounds = Number(routine.rounds) > 0 ? Number(routine.rounds) : 3;
+  const restSec = restSecondsFor(routine);
+  renderExercisePhase('warmup', routine.warmup || [], 1, restSec);
+  renderExercisePhase('main', routine.main || [], rounds, restSec);
+  renderExercisePhase('cooldown', routine.cooldown || [], 1, restSec);
 }
 
-function renderExercisePhase(phase, exercises) {
+/** Rest between sets, read off the routine's work/rest prescription.
+ *
+ * There is no per-exercise rest field; the API describes the whole circuit with
+ * a string like "45s work / 15s rest". Fall back to a sane default when the
+ * routine does not specify one (non-HIIT sessions say "3 rounds" instead).
+ */
+function restSecondsFor(routine) {
+  const match = /(\d+)\s*s(?:ec)?\s*rest/i.exec(String(routine.work_rest || ''));
+  if (match) return Number(match[1]);
+  return routine.category === 'hiit' ? 20 : 45;
+}
+
+/** 'jump_rope' -> 'jump rope'; used for both equipment keys and display names. */
+function prettyEquip(key) {
+  return String(key || '').replace(/_/g, ' ');
+}
+
+function renderExercisePhase(phase, exercises, rounds = 1, restSec = 45) {
   const countEl = $(`${phase}-count`);
   const listEl = $(`${phase}-list`);
   if (countEl) countEl.textContent = `${exercises.length} exercise${exercises.length === 1 ? '' : 's'}`;
@@ -302,28 +375,28 @@ function renderExercisePhase(phase, exercises) {
     item.className = 'exercise-item';
     item.id = `ex-${phase}-${idx}`;
 
-    const equipLabel = ex.equipment && ex.equipment.length
-      ? ex.equipment.map((eq) => `${EQUIP_ICONS[eq] || '📦'} ${eq.replace(/_/g, ' ')}`).join(', ')
+    // `equipment` is a single key ('none' means bodyweight), not an array.
+    const equipLabel = (ex.equipment && ex.equipment !== 'none')
+      ? `${EQUIP_ICONS[ex.equipment] || '📦'} ${prettyEquip(ex.equipment)}`
       : '🤸 Bodyweight';
 
-    const prescription = ex.duration_sec
-      ? `${ex.sets || 1} × ${ex.duration_sec}s`
-      : `${ex.sets || 3} sets × ${ex.reps || 10} reps`;
+    // The API sends a ready-made prescription string ('45s', '10-15 reps').
+    const prescription = ex.default_target || (ex.type === 'time' ? '45s' : '10 reps');
 
-    const totalSets = ex.sets || 3;
+    // Rounds come from the routine, not the exercise.
     let setsButtonsHtml = '';
-    for (let s = 1; s <= totalSets; s++) {
+    for (let s = 1; s <= rounds; s++) {
       setsButtonsHtml += `<button type="button" class="set-dot-btn" data-set="${s}">Set ${s}</button>`;
     }
 
     item.innerHTML = `
       <div class="exercise-top">
         <div class="exercise-name">${esc(ex.name)}</div>
-        <span class="exercise-prescription">${prescription}</span>
+        <span class="exercise-prescription">${esc(prescription)}</span>
       </div>
       <div class="exercise-sub">
-        <span>${equipLabel}</span>
-        ${ex.target_muscles?.length ? `<span>&bull; ${ex.target_muscles.join(', ')}</span>` : ''}
+        <span>${esc(equipLabel)}</span>
+        ${ex.target_muscles ? `<span>&bull; ${esc(ex.target_muscles)}</span>` : ''}
       </div>
       ${ex.instructions ? `
         <span class="instructions-toggle" data-target="inst-${phase}-${idx}">ℹ️ Instructions</span>
@@ -350,7 +423,7 @@ function renderExercisePhase(phase, exercises) {
         sBtn.classList.toggle('done');
         // Trigger short interval timer on completing a set if not already running
         if (sBtn.classList.contains('done') && !timerIsRunning) {
-          setTimerPreset(ex.rest_sec || 45);
+          setTimerPreset(restSec);
           startTimer();
         }
         // Check if all sets for this exercise are done

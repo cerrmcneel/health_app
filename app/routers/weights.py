@@ -1,5 +1,5 @@
 """Body weight tracking and moving average trends."""
-from datetime import date
+from datetime import date, timedelta
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from app import config
@@ -44,13 +44,22 @@ def list_weights(request: Request, limit: int = Query(default=30, ge=1, le=365))
             })
 
         latest = entries[0] if entries else None
-        prior = entries[6] if len(entries) >= 7 else (entries[-1] if len(entries) > 1 else None)
-        change_7d = round(latest["weight_kg"] - prior["weight_kg"], 2) if (latest and prior and latest != prior) else None
+        change_7d = None
+        change_span_days = None
+        if latest and len(entries) > 1:
+            latest_day = date.fromisoformat(latest["day"])
+            target = latest_day - timedelta(days=7)
+            older = [e for e in entries if e["day"] != latest["day"]]
+            if older:
+                prior = min(older, key=lambda e: abs((date.fromisoformat(e["day"]) - target).days))
+                change_7d = round(latest["weight_kg"] - prior["weight_kg"], 2)
+                change_span_days = (latest_day - date.fromisoformat(prior["day"])).days
 
         return {
             "weights": results,
             "latest_weight": latest["weight_kg"] if latest else None,
             "change_7d": change_7d,
+            "change_span_days": change_span_days,
         }
 
 

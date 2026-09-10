@@ -76,6 +76,36 @@ class ProfileUpdate(BaseModel):
     avatar_color: str | None = Field(default=None, max_length=20)
 
 
+class TargetPreviewIn(BaseModel):
+    sex: str | None = "male"
+    weight_kg: float = Field(gt=20, le=500)
+    height_cm: float = Field(gt=50, le=260)
+    age: int = Field(gt=10, le=120)
+    activity_level: str | None = "moderate"
+    goal: str | None = "maintain"
+    goal_rate_kg_per_week: float = Field(default=0.5, ge=0.0, le=2.0)
+
+
+class OnboardingIn(BaseModel):
+    name: str | None = Field(default=None, max_length=60)
+    avatar_color: str | None = Field(default=None, max_length=20)
+    sex: str | None = None
+    birth_year: int | None = Field(default=None, ge=1900, le=2030)
+    height_cm: float | None = Field(default=None, ge=50, le=260)
+    current_weight_kg: float | None = Field(default=None, gt=0, le=500)
+    activity_level: str | None = "moderate"
+    goal: str | None = "maintain"
+    goal_rate_kg_per_week: float = Field(default=0.5, ge=0.0, le=2.0)
+    calorie_target: float | None = Field(default=None, ge=500, le=20000)
+    protein_target: float | None = Field(default=None, ge=0, le=2000)
+    carbs_target: float | None = Field(default=None, ge=0, le=2000)
+    fat_target: float | None = Field(default=None, ge=0, le=2000)
+    equipment_keys: list[str] | None = None
+    preferred_duration_min: int | None = Field(default=25, ge=10, le=90)
+    preferred_level: str | None = Field(default="intermediate")
+    workout_days_per_week: int | None = Field(default=3, ge=1, le=7)
+
+
 class WeightIn(BaseModel):
     weight_kg: float = Field(gt=0, le=500)
     day: date | None = None

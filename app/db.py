@@ -16,7 +16,18 @@ CREATE TABLE IF NOT EXISTS profiles (
     protein_target REAL    NOT NULL DEFAULT 160,
     carbs_target   REAL    NOT NULL DEFAULT 220,
     fat_target     REAL    NOT NULL DEFAULT 70,
-    is_default     INTEGER NOT NULL DEFAULT 0
+    seeded_equipment INTEGER NOT NULL DEFAULT 0,
+    is_default     INTEGER NOT NULL DEFAULT 0,
+    sex            TEXT,
+    birth_year     INTEGER,
+    height_cm      REAL,
+    activity_level TEXT,
+    goal           TEXT,
+    goal_rate_kg_per_week REAL,
+    preferred_duration_min INTEGER DEFAULT 25,
+    preferred_level TEXT DEFAULT 'intermediate',
+    workout_days_per_week INTEGER DEFAULT 3,
+    onboarded_at   TEXT
 );
 
 CREATE TABLE IF NOT EXISTS meals (
@@ -72,14 +83,6 @@ CREATE TABLE IF NOT EXISTS weights (
 );
 CREATE INDEX IF NOT EXISTS idx_weights_profile_day ON weights(profile_id, day DESC);
 
-CREATE TABLE IF NOT EXISTS settings (
-    id             INTEGER PRIMARY KEY CHECK (id = 1),
-    calorie_target REAL NOT NULL DEFAULT 2200,
-    protein_target REAL NOT NULL DEFAULT 160,
-    carbs_target   REAL NOT NULL DEFAULT 220,
-    fat_target     REAL NOT NULL DEFAULT 70
-);
-INSERT OR IGNORE INTO settings (id) VALUES (1);
 
 CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_docs USING fts5(
     slug UNINDEXED,
@@ -240,9 +243,34 @@ def _migrate(conn: sqlite3.Connection) -> None:
            ON progress_photos(profile_id, day, pose)"""
     )
 
-    # Seed initial equipment (Yoga Mat, Jump Rope) for profiles if empty
+    # Drop the legacy write-only settings table
+    conn.execute("DROP TABLE IF EXISTS settings")
+
+    # Track equipment seeding per-profile so deleting gear is respected across boots
+    profile_cols = {r["name"] for r in conn.execute("PRAGMA table_info(profiles)").fetchall()}
+    if "seeded_equipment" not in profile_cols:
+        conn.execute("ALTER TABLE profiles ADD COLUMN seeded_equipment INTEGER NOT NULL DEFAULT 0")
+
+    # Ensure profile onboarding and preference columns exist on existing databases
+    new_profile_cols = {
+        "sex": "TEXT",
+        "birth_year": "INTEGER",
+        "height_cm": "REAL",
+        "activity_level": "TEXT",
+        "goal": "TEXT",
+        "goal_rate_kg_per_week": "REAL",
+        "preferred_duration_min": "INTEGER DEFAULT 25",
+        "preferred_level": "TEXT DEFAULT 'intermediate'",
+        "workout_days_per_week": "INTEGER DEFAULT 3",
+        "onboarded_at": "TEXT",
+    }
+    for col_name, col_def in new_profile_cols.items():
+        if col_name not in profile_cols:
+            conn.execute(f"ALTER TABLE profiles ADD COLUMN {col_name} {col_def}")
+
+    # One-time initial equipment seed (Yoga Mat, Jump Rope) for unseeded profiles
     now_str = config.now().isoformat()
-    profiles = conn.execute("SELECT id FROM profiles").fetchall()
+    profiles = conn.execute("SELECT id FROM profiles WHERE seeded_equipment = 0").fetchall()
     for p in profiles:
         count = conn.execute(
             "SELECT COUNT(*) as c FROM profile_equipment WHERE profile_id = ?", (p["id"],)
@@ -254,6 +282,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
                           (?, 'jump_rope', 'Jump Rope', ?)""",
                 (p["id"], now_str, p["id"], now_str),
             )
+        conn.execute("UPDATE profiles SET seeded_equipment = 1 WHERE id = ?", (p["id"],))
 
 
 

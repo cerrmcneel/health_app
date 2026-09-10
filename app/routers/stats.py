@@ -117,12 +117,6 @@ def put_settings(request: Request, settings: Settings):
             (settings.calorie_target, settings.protein_target,
              settings.carbs_target, settings.fat_target, profile_id),
         )
-        conn.execute(
-            """UPDATE settings SET calorie_target = ?, protein_target = ?,
-                                   carbs_target = ?, fat_target = ? WHERE id = 1""",
-            (settings.calorie_target, settings.protein_target,
-             settings.carbs_target, settings.fat_target),
-        )
     return settings.model_dump()
 
 
@@ -160,8 +154,19 @@ async def health():
         )
     elif not match["vision"]:
         vision_models = [m["name"] for m in models if m["vision"]]
-        info["hint"] = (
+        hint = (
             f"'{config.VISION_MODEL}' cannot process images. "
             f"Vision-capable models installed: {', '.join(vision_models) or 'none'}."
         )
+        if "gemma" in config.VISION_MODEL.lower():
+            hint += " Note: Gemma 4 requires Ollama >= 0.22 to enable vision (check `ollama --version`)."
+        info["hint"] = hint
     return info
+
+
+@router.get("/health/live")
+def health_live():
+    """Lightweight liveness probe for Docker HEALTHCHECK. Confirms process & SQLite are up."""
+    with get_conn() as conn:
+        conn.execute("SELECT 1").fetchone()
+    return {"status": "ok"}

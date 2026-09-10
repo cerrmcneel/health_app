@@ -4,6 +4,8 @@ Uses SQLite FTS5 for local BM25 ranking over curated markdown articles,
 fusing scientific evidence with personal stats (weight, targets, intake)
 for local LLM synthesis via Ollama.
 """
+import json
+import logging
 import re
 import sqlite3
 from pathlib import Path
@@ -12,6 +14,8 @@ from typing import Any
 import httpx
 
 from app import config
+
+log = logging.getLogger("tracker")
 
 KNOWLEDGE_DIR = config.BASE_DIR / "app" / "knowledge"
 
@@ -41,12 +45,12 @@ def parse_markdown_docs() -> list[dict[str, Any]]:
         return docs
 
     for path in sorted(KNOWLEDGE_DIR.glob("*.md")):
-        slug = path.stem
         try:
             content = path.read_text(encoding="utf-8")
-        except Exception:
+        except (OSError, UnicodeDecodeError) as exc:
+            log.warning("Could not read knowledge document %s: %s", path, exc)
             continue
-
+        slug = path.stem
         lines = content.splitlines()
         doc_title = slug.replace("_", " ").title()
         current_section = "Overview"
@@ -247,10 +251,8 @@ def _deterministic_balance_explanation(snapshot: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-async def explain_balance(conn: sqlite3.Connection, profile_id: int, day: str) -> dict[str, Any]:
+async def explain_balance(snapshot: dict[str, Any], docs: list[dict[str, Any]]) -> dict[str, Any]:
     """Generate a personalized rationale for the user's active targets."""
-    snapshot = get_personal_snapshot(conn, profile_id, day)
-    docs = search_knowledge(conn, "macronutrients protein fats carbohydrates energy balance", limit=4)
     sources = [f"{d['title']} - {d['section']}" for d in docs]
 
     context_text = "\n\n".join([f"### {d['title']}: {d['section']}\n{d['content']}" for d in docs])
@@ -297,8 +299,8 @@ Provide a well-structured, motivating explanation covering Protein (g/kg & MPS),
                         "sources": sources,
                         "model": config.VISION_MODEL,
                     }
-    except Exception:
-        pass
+    except (httpx.HTTPError, json.JSONDecodeError, KeyError, ValueError) as exc:
+        log.warning("Ollama balance explanation failed, using fallback: %s", exc)
 
     return {
         "explanation": _deterministic_balance_explanation(snapshot),
@@ -309,11 +311,9 @@ Provide a well-structured, motivating explanation covering Protein (g/kg & MPS),
 
 
 async def ask_nutrition_question(
-    conn: sqlite3.Connection, profile_id: int, day: str, question: str
+    snapshot: dict[str, Any], docs: list[dict[str, Any]], question: str
 ) -> dict[str, Any]:
     """Answer arbitrary user nutrition/health questions with retrieved context and personal stats."""
-    snapshot = get_personal_snapshot(conn, profile_id, day)
-    docs = search_knowledge(conn, question, limit=3)
     sources = [f"{d['title']} - {d['section']}" for d in docs]
     context_text = "\n\n".join([f"### {d['title']}: {d['section']}\n{d['content']}" for d in docs])
 
@@ -359,7 +359,8 @@ Answer the user's question clearly, scientifically, and concisely based on this 
                         "snapshot": snapshot,
                         "model": config.VISION_MODEL,
                     }
-    except Exception as exc:
+    except (httpx.HTTPError, json.JSONDecodeError, KeyError, ValueError) as exc:
+        log.warning("Ollama nutrition question failed, using fallback: %s", exc)
         return {
             "answer": (
                 f"Ollama ({config.VISION_MODEL}) is currently unreachable ({exc}).\n\n"

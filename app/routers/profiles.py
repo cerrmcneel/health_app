@@ -4,10 +4,13 @@ from fastapi import APIRouter, HTTPException, Request
 
 from app import config
 from app.db import get_conn
+from app.data.exercises import STANDARD_EQUIPMENT
 from app.deps import get_profile, get_profile_id, slugify
-from app.models import ProfileIn, ProfileUpdate
+from app.models import OnboardingIn, ProfileIn, ProfileUpdate, TargetPreviewIn
+from app.services.targets import compute_targets
 
 router = APIRouter(prefix="/api/profiles", tags=["profiles"])
+
 
 
 @router.get("")
@@ -49,12 +52,18 @@ def create_profile(payload: ProfileIn):
 
         cur = conn.execute(
             """INSERT INTO profiles (name, slug, created_at, avatar_color,
-                                     calorie_target, protein_target, carbs_target, fat_target, is_default)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)""",
+                                     calorie_target, protein_target, carbs_target, fat_target, is_default, seeded_equipment)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 1)""",
             (name, slug, when, payload.avatar_color,
              payload.calorie_target, payload.protein_target, payload.carbs_target, payload.fat_target),
         )
         profile_id = cur.lastrowid
+        conn.execute(
+            """INSERT OR IGNORE INTO profile_equipment (profile_id, item_key, name, acquired_at)
+               VALUES (?, 'yoga_mat', 'Yoga Mat', ?),
+                      (?, 'jump_rope', 'Jump Rope', ?)""",
+            (profile_id, when, profile_id, when),
+        )
         return dict(conn.execute("SELECT * FROM profiles WHERE id = ?", (profile_id,)).fetchone())
 
 
@@ -97,18 +106,6 @@ def update_profile(profile_id: int, patch: ProfileUpdate):
                 f"UPDATE profiles SET {assignments} WHERE id = ?",
                 (*fields.values(), profile_id),
             )
-            # If default profile targets updated, keep settings table in sync
-            if row["is_default"]:
-                s_map = {
-                    "calorie_target": fields.get("calorie_target"),
-                    "protein_target": fields.get("protein_target"),
-                    "carbs_target": fields.get("carbs_target"),
-                    "fat_target": fields.get("fat_target"),
-                }
-                s_updates = {k: v for k, v in s_map.items() if v is not None}
-                if s_updates:
-                    s_assigns = ", ".join(f"{k} = ?" for k in s_updates)
-                    conn.execute(f"UPDATE settings SET {s_assigns} WHERE id = 1", (*s_updates.values(),))
 
         return dict(conn.execute("SELECT * FROM profiles WHERE id = ?", (profile_id,)).fetchone())
 
@@ -140,3 +137,121 @@ def set_default_profile(profile_id: int):
         conn.execute("UPDATE profiles SET is_default = 0")
         conn.execute("UPDATE profiles SET is_default = 1 WHERE id = ?", (profile_id,))
         return {"default_profile_id": profile_id}
+
+
+@router.post("/preview-targets")
+def preview_targets(payload: TargetPreviewIn):
+    """Compute and preview targets without saving."""
+    return compute_targets(
+        sex=payload.sex,
+        weight_kg=payload.weight_kg,
+        height_cm=payload.height_cm,
+        age=payload.age,
+        activity_level=payload.activity_level,
+        goal=payload.goal,
+        goal_rate_kg_per_week=payload.goal_rate_kg_per_week,
+    )
+
+
+@router.post("/{profile_id}/onboarding")
+def complete_onboarding(profile_id: int, payload: OnboardingIn):
+    """Save guided profile onboarding stats, update targets, log initial weight, and set inventory."""
+    with get_conn() as conn:
+        prof = conn.execute("SELECT * FROM profiles WHERE id = ?", (profile_id,)).fetchone()
+        if not prof:
+            raise HTTPException(status_code=404, detail="Profile not found.")
+
+        name = prof["name"]
+        slug = prof["slug"]
+        if payload.name and payload.name.strip():
+            candidate_name = payload.name.strip()
+            if candidate_name != prof["name"]:
+                dup = conn.execute(
+                    "SELECT id FROM profiles WHERE name = ? AND id != ?", (candidate_name, profile_id)
+                ).fetchone()
+                if dup:
+                    raise HTTPException(status_code=409, detail=f"Profile '{candidate_name}' already exists.")
+                name = candidate_name
+                base_slug = slugify(name)
+                slug = base_slug
+                counter = 1
+                while conn.execute("SELECT id FROM profiles WHERE slug = ? AND id != ?", (slug, profile_id)).fetchone():
+                    counter += 1
+                    slug = f"{base_slug}-{counter}"
+
+        avatar_color = payload.avatar_color or prof["avatar_color"]
+
+        calorie_target = payload.calorie_target or prof["calorie_target"]
+        protein_target = payload.protein_target or prof["protein_target"]
+        carbs_target = payload.carbs_target or prof["carbs_target"]
+        fat_target = payload.fat_target or prof["fat_target"]
+
+        now_dt = config.now()
+        now_str = now_dt.isoformat()
+        today_str = config.today_iso()
+
+        age = None
+        if payload.birth_year:
+            age = max(10, min(120, now_dt.year - payload.birth_year))
+
+        if payload.current_weight_kg and payload.height_cm and age:
+            if not payload.calorie_target:
+                calc = compute_targets(
+                    sex=payload.sex,
+                    weight_kg=payload.current_weight_kg,
+                    height_cm=payload.height_cm,
+                    age=age,
+                    activity_level=payload.activity_level,
+                    goal=payload.goal,
+                    goal_rate_kg_per_week=payload.goal_rate_kg_per_week or 0.5,
+                )
+                calorie_target = calc["calorie_target"]
+                protein_target = calc["protein_target"]
+                carbs_target = calc["carbs_target"]
+                fat_target = calc["fat_target"]
+
+            conn.execute(
+                """INSERT INTO weights (profile_id, day, logged_at, weight_kg, notes)
+                   VALUES (?, ?, ?, ?, 'Initial onboarding weight')
+                   ON CONFLICT(profile_id, day) DO UPDATE SET weight_kg = excluded.weight_kg, logged_at = excluded.logged_at""",
+                (profile_id, today_str, now_str, payload.current_weight_kg),
+            )
+
+        if payload.equipment_keys is not None:
+            eq_map = {item["key"]: item["name"] for item in STANDARD_EQUIPMENT}
+            conn.execute("DELETE FROM profile_equipment WHERE profile_id = ?", (profile_id,))
+            for key in payload.equipment_keys:
+                k = key.strip().lower()
+                if not k or k in ("none", "bodyweight"):
+                    continue
+                item_name = eq_map.get(k, k.replace("_", " ").title())
+                conn.execute(
+                    """INSERT OR IGNORE INTO profile_equipment (profile_id, item_key, name, acquired_at)
+                       VALUES (?, ?, ?, ?)""",
+                    (profile_id, k, item_name, now_str),
+                )
+            conn.execute("UPDATE profiles SET seeded_equipment = 1 WHERE id = ?", (profile_id,))
+
+        onboarded_at = now_str
+
+        conn.execute(
+            """UPDATE profiles SET
+                name = ?, slug = ?, avatar_color = ?,
+                sex = ?, birth_year = ?, height_cm = ?,
+                activity_level = ?, goal = ?, goal_rate_kg_per_week = ?,
+                preferred_duration_min = ?, preferred_level = ?, workout_days_per_week = ?,
+                calorie_target = ?, protein_target = ?, carbs_target = ?, fat_target = ?,
+                onboarded_at = ?
+               WHERE id = ?""",
+            (
+                name, slug, avatar_color,
+                payload.sex, payload.birth_year, payload.height_cm,
+                payload.activity_level, payload.goal, payload.goal_rate_kg_per_week,
+                payload.preferred_duration_min or 25, payload.preferred_level or "intermediate", payload.workout_days_per_week or 3,
+                calorie_target, protein_target, carbs_target, fat_target,
+                onboarded_at, profile_id
+            ),
+        )
+
+        return dict(conn.execute("SELECT * FROM profiles WHERE id = ?", (profile_id,)).fetchone())
+

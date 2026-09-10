@@ -90,17 +90,16 @@ def commit_pending(token: str, when: datetime) -> str | None:
 
 
 def save_progress_photo(img: Image.Image, pose: str, day: str, profile_id: int = 1) -> tuple[str, int, int, int]:
-    """Write a progress photo to {pose}/YYYY-MM-DD_{pose}[_p{profile_id}].jpg.
+    """Write a progress photo to {pose}/YYYY-MM-DD_{pose}_{rand}.jpg.
 
-    Returns (relative_path, width, height, bytes). Re-shooting the same pose on
-    the same day intentionally overwrites for that profile.
+    Returns (relative_path, width, height, bytes).
     """
     if pose not in config.POSES:
         raise ImageError(f"Unknown pose '{pose}'.")
     directory = config.POSE_DIRS[pose]
     directory.mkdir(parents=True, exist_ok=True)
-    suffix = f"_p{profile_id}" if profile_id > 1 else ""
-    dest = directory / f"{day}_{pose}{suffix}.jpg"
+    rand_part = uuid.uuid4().hex[:8]
+    dest = directory / f"{day}_{pose}_{rand_part}.jpg"
     data = to_jpeg_bytes(img, quality=92)
     dest.write_bytes(data)
     return relative(dest), img.width, img.height, len(data)
@@ -108,7 +107,7 @@ def save_progress_photo(img: Image.Image, pose: str, day: str, profile_id: int =
 
 def relative(path: Path) -> str:
     """Path relative to STORAGE_DIR, with forward slashes for use in URLs."""
-    return path.resolve().relative_to(config.STORAGE_DIR).as_posix()
+    return path.resolve().relative_to(config.STORAGE_DIR.resolve()).as_posix()
 
 
 def resolve_media(rel: str) -> Path:
