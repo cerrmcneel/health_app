@@ -42,6 +42,15 @@ async function loadProfiles() {
       $('profile-name').textContent = currentProfile.name;
       $('profile-avatar').textContent = currentProfile.name.charAt(0).toUpperCase();
       $('profile-avatar').style.background = currentProfile.avatar_color || '#3b82f6';
+
+      const promptEl = $('onboarding-prompt');
+      if (promptEl) {
+        if (!currentProfile.onboarded_at) {
+          promptEl.classList.remove('hidden');
+        } else {
+          promptEl.classList.add('hidden');
+        }
+      }
     }
 
     renderProfileList();
@@ -65,6 +74,9 @@ function renderProfileList() {
           <small>${fmt(p.calorie_target)} kcal &middot; P:${fmt(p.protein_target)}g C:${fmt(p.carbs_target)}g F:${fmt(p.fat_target)}g</small>
         </div>
         <div style="display:flex;gap:6px;align-items:center">
+          <button type="button" class="meal-btn onboard-profile-btn" data-onboard-pid="${p.id}" title="Run guided setup wizard" style="padding:4px 8px;font-size:11px">
+            🎯 Setup
+          </button>
           <button type="button" class="meal-btn edit-profile-btn" data-edit-pid="${p.id}" title="Edit profile name & targets" style="padding:4px 8px;font-size:11px">
             ✏️ Edit
           </button>
@@ -76,7 +88,7 @@ function renderProfileList() {
 
   container.querySelectorAll('.profile-item').forEach((el) => {
     el.addEventListener('click', async (e) => {
-      if (e.target.closest('.edit-profile-btn') || e.target.closest('[data-del-profile]')) return;
+      if (e.target.closest('.edit-profile-btn') || e.target.closest('.onboard-profile-btn') || e.target.closest('[data-del-profile]')) return;
       const pid = el.dataset.pid;
       setActiveProfileId(pid);
       closeModal('profile-modal');
@@ -84,6 +96,14 @@ function renderProfileList() {
       await loadDay();
       await Promise.all([loadChart(), loadPhotos(), loadWeight()]);
       toast('Switched profile');
+    });
+  });
+
+  container.querySelectorAll('.onboard-profile-btn').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeModal('profile-modal');
+      openOnboardingModal(btn.dataset.onboardPid);
     });
   });
 
@@ -204,12 +224,305 @@ $('add-profile-form')?.addEventListener('submit', async (e) => {
     await loadProfiles();
     await loadDay();
     await Promise.all([loadChart(), loadPhotos(), loadWeight()]);
+    openOnboardingModal(created.id);
   } catch (err) {
     toast(err.message, true);
   }
 });
 
 $('profile-btn')?.addEventListener('click', () => openModal('profile-modal'));
+$('btn-start-onboarding')?.addEventListener('click', () => {
+  if (currentProfile) openOnboardingModal(currentProfile.id);
+});
+
+// --- Guided Profile Onboarding Wizard ---
+let onboardCurrentStep = 1;
+let onboardSelectedAvatarColor = '#3b82f6';
+let onboardSelectedGoal = 'maintain';
+let onboardSelectedDuration = 25;
+let onboardSelectedLevel = 'intermediate';
+
+const STANDARD_EQUIPMENT_CATALOG = [
+  { key: 'yoga_mat', name: 'Yoga Mat', icon: '🧘' },
+  { key: 'jump_rope', name: 'Jump Rope', icon: '🪢' },
+  { key: 'pull_up_bar', name: 'Pull-up Bar', icon: '🚪' },
+  { key: 'resistance_bands', name: 'Resistance Bands', icon: '🎗️' },
+  { key: 'dumbbells', name: 'Dumbbells', icon: '🏋️' },
+  { key: 'kettlebell', name: 'Kettlebell', icon: '🔔' },
+  { key: 'bench', name: 'Workout Bench', icon: '🛋️' },
+  { key: 'barbell', name: 'Barbell & Plates', icon: '🔩' },
+  { key: 'dip_station', name: 'Dip Station', icon: '🪜' },
+  { key: 'ab_wheel', name: 'Ab Wheel', icon: '⚙️' },
+  { key: 'foam_roller', name: 'Foam Roller', icon: '🪵' },
+];
+
+async function openOnboardingModal(pid) {
+  const p = currentProfilesList.find(x => String(x.id) === String(pid)) || currentProfile;
+  if (!p) return;
+
+  $('onboard-profile-id').value = p.id;
+  $('onboard-name').value = p.name || '';
+  onboardSelectedAvatarColor = p.avatar_color || '#3b82f6';
+  $('onboard-colors')?.querySelectorAll('.color-opt').forEach((opt) => {
+    opt.classList.toggle('selected', opt.dataset.color.toLowerCase() === onboardSelectedAvatarColor.toLowerCase());
+  });
+
+  if (p.sex) $('onboard-sex').value = p.sex;
+  if (p.birth_year) $('onboard-birth-year').value = p.birth_year;
+  if (p.height_cm) $('onboard-height').value = p.height_cm;
+  if (p.activity_level) $('onboard-activity').value = p.activity_level;
+
+  try {
+    const wData = await getJSON('/api/weights?limit=1');
+    if (wData && wData.latest_weight != null) {
+      $('onboard-weight').value = wData.latest_weight;
+    }
+  } catch (err) {}
+
+  onboardSelectedGoal = p.goal || 'maintain';
+  $('onboard-goal-row')?.querySelectorAll('.preset-btn').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.goal === onboardSelectedGoal);
+  });
+  if (onboardSelectedGoal !== 'maintain') {
+    $('onboard-rate-container')?.classList.remove('hidden');
+    if (p.goal_rate_kg_per_week) $('onboard-rate').value = String(p.goal_rate_kg_per_week);
+  } else {
+    $('onboard-rate-container')?.classList.add('hidden');
+  }
+
+  let ownedKeys = new Set(['yoga_mat', 'jump_rope']);
+  try {
+    const eqData = await getJSON('/api/workouts/equipment');
+    if (eqData && eqData.owned_keys) {
+      ownedKeys = new Set(eqData.owned_keys);
+    }
+  } catch (err) {}
+
+  const grid = $('onboard-equipment-grid');
+  if (grid) {
+    grid.innerHTML = STANDARD_EQUIPMENT_CATALOG.map(eq => `
+      <label class="onboard-equip-card ${ownedKeys.has(eq.key) ? 'selected' : ''}">
+        <input type="checkbox" name="onboard-equip" value="${esc(eq.key)}" ${ownedKeys.has(eq.key) ? 'checked' : ''}>
+        <span>${eq.icon}</span>
+        <span style="font-size:12.5px;font-weight:500">${esc(eq.name)}</span>
+      </label>
+    `).join('');
+
+    grid.querySelectorAll('.onboard-equip-card').forEach(card => {
+      const cb = card.querySelector('input');
+      cb.addEventListener('change', () => {
+        card.classList.toggle('selected', cb.checked);
+      });
+    });
+  }
+
+  onboardSelectedDuration = p.preferred_duration_min || 25;
+  $('onboard-duration-pills')?.querySelectorAll('.pill-btn').forEach(btn => {
+    btn.classList.toggle('active', Number(btn.dataset.val) === onboardSelectedDuration);
+  });
+
+  onboardSelectedLevel = p.preferred_level || 'intermediate';
+  $('onboard-level-pills')?.querySelectorAll('.pill-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.val === onboardSelectedLevel);
+  });
+
+  if (p.workout_days_per_week) {
+    $('onboard-days-per-week').value = String(p.workout_days_per_week);
+  }
+
+  if (p.calorie_target) $('onboard-t-cal').value = Math.round(p.calorie_target);
+  if (p.protein_target) $('onboard-t-pro').value = Math.round(p.protein_target);
+  if (p.carbs_target) $('onboard-t-car').value = Math.round(p.carbs_target);
+  if (p.fat_target) $('onboard-t-fat').value = Math.round(p.fat_target);
+
+  setOnboardStep(1);
+  await updateOnboardPreview();
+  openModal('onboarding-modal');
+}
+
+function setOnboardStep(step) {
+  onboardCurrentStep = step;
+  document.querySelectorAll('.onboard-step').forEach(el => {
+    el.classList.toggle('hidden', Number(el.dataset.step) !== step);
+  });
+
+  if ($('onboard-step-indicator')) $('onboard-step-indicator').textContent = `Step ${step} of 6`;
+  if ($('onboard-progress-bar')) $('onboard-progress-bar').style.width = `${(step / 6) * 100}%`;
+
+  if ($('onboard-prev-btn')) $('onboard-prev-btn').style.display = step > 1 ? 'inline-block' : 'none';
+  if ($('onboard-next-btn')) $('onboard-next-btn').textContent = step === 6 ? 'Complete Setup ✓' : 'Next →';
+  if ($('onboard-skip-btn')) $('onboard-skip-btn').textContent = step === 6 ? 'Finish' : 'Skip';
+
+  if (step === 4) {
+    updateOnboardPreview();
+  }
+}
+
+async function updateOnboardPreview() {
+  const sex = $('onboard-sex')?.value || 'male';
+  const birthYear = Number($('onboard-birth-year')?.value) || 1995;
+  const age = Math.max(10, Math.min(100, new Date().getFullYear() - birthYear));
+  const height = Number($('onboard-height')?.value) || 175;
+  const weight = Number($('onboard-weight')?.value) || 75;
+  const activity = $('onboard-activity')?.value || 'moderate';
+  const goal = onboardSelectedGoal;
+  const rate = Number($('onboard-rate')?.value) || 0.5;
+
+  try {
+    const calc = await postJSON('/api/profiles/preview-targets', {
+      sex,
+      weight_kg: weight,
+      height_cm: height,
+      age,
+      activity_level: activity,
+      goal,
+      goal_rate_kg_per_week: rate,
+    });
+
+    if (calc) {
+      if ($('onboard-preview-cals')) $('onboard-preview-cals').textContent = `${fmt(calc.calorie_target)} kcal`;
+      if ($('onboard-preview-pro')) $('onboard-preview-pro').textContent = `${fmt(calc.protein_target)}g`;
+      if ($('onboard-preview-car')) $('onboard-preview-car').textContent = `${fmt(calc.carbs_target)}g`;
+      if ($('onboard-preview-fat')) $('onboard-preview-fat').textContent = `${fmt(calc.fat_target)}g`;
+      if ($('onboard-preview-expl')) $('onboard-preview-expl').textContent = calc.explanation || '';
+    }
+  } catch (err) {
+    console.debug('Preview calc skipped:', err);
+  }
+}
+
+$('onboard-colors')?.querySelectorAll('.color-opt').forEach((opt) => {
+  opt.addEventListener('click', () => {
+    $('onboard-colors').querySelectorAll('.color-opt').forEach(o => o.classList.remove('selected'));
+    opt.classList.add('selected');
+    onboardSelectedAvatarColor = opt.dataset.color;
+  });
+});
+
+$('onboard-goal-row')?.querySelectorAll('.preset-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    $('onboard-goal-row').querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    onboardSelectedGoal = btn.dataset.goal;
+    if (onboardSelectedGoal !== 'maintain') {
+      $('onboard-rate-container')?.classList.remove('hidden');
+    } else {
+      $('onboard-rate-container')?.classList.add('hidden');
+    }
+    updateOnboardPreview();
+  });
+});
+
+['onboard-sex', 'onboard-birth-year', 'onboard-height', 'onboard-weight', 'onboard-activity', 'onboard-rate'].forEach(id => {
+  $(id)?.addEventListener('change', updateOnboardPreview);
+  $(id)?.addEventListener('input', updateOnboardPreview);
+});
+
+$('onboard-btn-bodyweight')?.addEventListener('click', () => {
+  $('onboard-equipment-grid')?.querySelectorAll('.onboard-equip-card').forEach(card => {
+    const cb = card.querySelector('input');
+    cb.checked = false;
+    card.classList.remove('selected');
+  });
+  toast('Set to bodyweight only');
+});
+
+$('onboard-duration-pills')?.querySelectorAll('.pill-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    $('onboard-duration-pills').querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    onboardSelectedDuration = Number(btn.dataset.val);
+  });
+});
+
+$('onboard-level-pills')?.querySelectorAll('.pill-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    $('onboard-level-pills').querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    onboardSelectedLevel = btn.dataset.val;
+  });
+});
+
+$('onboard-prev-btn')?.addEventListener('click', () => {
+  if (onboardCurrentStep > 1) setOnboardStep(onboardCurrentStep - 1);
+});
+
+$('onboard-next-btn')?.addEventListener('click', async () => {
+  if (onboardCurrentStep < 6) {
+    setOnboardStep(onboardCurrentStep + 1);
+  } else {
+    await submitOnboarding();
+  }
+});
+
+$('onboard-skip-btn')?.addEventListener('click', async () => {
+  if (onboardCurrentStep < 6) {
+    setOnboardStep(onboardCurrentStep + 1);
+  } else {
+    await submitOnboarding();
+  }
+});
+
+$('onboarding-form')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  await submitOnboarding();
+});
+
+async function submitOnboarding() {
+  const pid = $('onboard-profile-id').value;
+  if (!pid) return;
+
+  const name = $('onboard-name').value.trim();
+  const birthYear = $('onboard-birth-year').value ? Number($('onboard-birth-year').value) : null;
+  const height = $('onboard-height').value ? Number($('onboard-height').value) : null;
+  const weight = $('onboard-weight').value ? Number($('onboard-weight').value) : null;
+  const daysPerWeek = Number($('onboard-days-per-week').value) || 3;
+
+  const equipKeys = [];
+  $('onboard-equipment-grid')?.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => {
+    equipKeys.push(cb.value);
+  });
+
+  const payload = {
+    name: name || undefined,
+    avatar_color: onboardSelectedAvatarColor,
+    sex: $('onboard-sex')?.value || 'male',
+    birth_year: birthYear,
+    height_cm: height,
+    current_weight_kg: weight,
+    activity_level: $('onboard-activity')?.value || 'moderate',
+    goal: onboardSelectedGoal,
+    goal_rate_kg_per_week: Number($('onboard-rate')?.value) || 0.5,
+    equipment_keys: equipKeys,
+    preferred_duration_min: onboardSelectedDuration,
+    preferred_level: onboardSelectedLevel,
+    workout_days_per_week: daysPerWeek,
+  };
+
+  if ($('onboard-t-cal')?.value) payload.calorie_target = Number($('onboard-t-cal').value);
+  if ($('onboard-t-pro')?.value) payload.protein_target = Number($('onboard-t-pro').value);
+  if ($('onboard-t-car')?.value) payload.carbs_target = Number($('onboard-t-car').value);
+  if ($('onboard-t-fat')?.value) payload.fat_target = Number($('onboard-t-fat').value);
+
+  const nextBtn = $('onboard-next-btn');
+  nextBtn.disabled = true;
+  nextBtn.textContent = 'Saving...';
+
+  try {
+    await postJSON(`/api/profiles/${pid}/onboarding`, payload);
+    closeModal('onboarding-modal');
+    toast('Profile setup completed!');
+    await loadProfiles();
+    await loadDay();
+    await Promise.all([loadChart(), loadPhotos(), loadWeight()]);
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    nextBtn.disabled = false;
+    nextBtn.textContent = 'Complete Setup ✓';
+  }
+}
+
 
 // --- Weight Tracking ---
 async function loadWeight() {
@@ -220,7 +533,8 @@ async function loadWeight() {
       if (data.change_7d != null) {
         const deltaCls = data.change_7d < 0 ? 'down' : (data.change_7d > 0 ? 'up' : '');
         const sign = data.change_7d > 0 ? '+' : '';
-        $('weight-delta').innerHTML = `<b class="${deltaCls}">${sign}${fmt(data.change_7d, 1)} kg</b>7d change`;
+        const spanLabel = data.change_span_days != null ? `${data.change_span_days}d change` : '7d change';
+        $('weight-delta').innerHTML = `<b class="${deltaCls}">${sign}${fmt(data.change_7d, 1)} kg</b>${esc(spanLabel)}`;
       } else {
         $('weight-delta').innerHTML = `<b>&mdash;</b>7d change`;
       }
@@ -692,10 +1006,10 @@ function renderSimpleMarkdown(md) {
 
     if (line.startsWith('#### ')) {
       if (inList) { html += '</ul>'; inList = false; }
-      html += `<h4>${esc(line.slice(5))}</h4>`;
+      html += `<h4>${formatInlineMd(line.slice(5))}</h4>`;
     } else if (line.startsWith('### ')) {
       if (inList) { html += '</ul>'; inList = false; }
-      html += `<h3>${esc(line.slice(4))}</h3>`;
+      html += `<h3>${formatInlineMd(line.slice(4))}</h3>`;
     } else if (line.startsWith('- ') || line.startsWith('* ')) {
       if (!inList) { html += '<ul>'; inList = true; }
       const itemText = line.slice(2);

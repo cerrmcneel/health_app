@@ -9,13 +9,13 @@ import hashlib
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, Request, Response
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from app import config
+from app import auth, config
 from app.db import init_db
-from app.routers import knowledge, meals, photos, profiles, stats, weights, workouts
+from app.routers import backup, knowledge, meals, photos, profiles, stats, weights, workouts
 from app.services import images
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -36,6 +36,31 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="Fitness Tracker", version="1.0.0", lifespan=lifespan)
 
+
+@app.middleware("http")
+async def auth_gate(request: Request, call_next):
+    if not auth.is_auth_enabled():
+        return await call_next(request)
+
+    path = request.url.path
+    # Exempt routes: login, logout, static files, sw, manifest, liveness probe
+    if (
+        path in ("/login", "/logout", "/sw.js", "/manifest.webmanifest", "/api/health/live")
+        or path.startswith("/static/")
+    ):
+        return await call_next(request)
+
+    cookie = request.cookies.get(auth.COOKIE_NAME)
+    if not auth.verify_session(cookie):
+        accept = request.headers.get("accept", "")
+        if path.startswith("/api/") or "application/json" in accept:
+            return JSONResponse(status_code=401, content={"detail": "Authentication required."})
+        return RedirectResponse(f"/login?next={path}", status_code=303)
+
+    return await call_next(request)
+
+
+app.include_router(auth.router)
 app.include_router(meals.router)
 app.include_router(photos.router)
 app.include_router(stats.router)
@@ -43,6 +68,7 @@ app.include_router(profiles.router)
 app.include_router(weights.router)
 app.include_router(knowledge.router)
 app.include_router(workouts.router)
+app.include_router(backup.router)
 
 
 @app.exception_handler(Exception)
@@ -130,8 +156,25 @@ def share_target():
     return RedirectResponse("/log", status_code=303)
 
 
+class RevalidatingStaticFiles(StaticFiles):
+    """Static assets that must be revalidated rather than assumed fresh.
+
+    Starlette sends ETag and Last-Modified but no Cache-Control, so browsers fall
+    back to heuristic freshness and can serve a cached module for hours. The
+    service worker's build-id versioning cannot help: the HTTP cache sits
+    underneath it, so a client that already holds stale JS never asks for the new
+    file. `no-cache` still allows a conditional request, so the common case is a
+    cheap 304, not a re-download.
+    """
+
+    def file_response(self, *args, **kwargs):
+        response = super().file_response(*args, **kwargs)
+        response.headers.setdefault("Cache-Control", "no-cache")
+        return response
+
+
 # Mounted last so it cannot shadow the API routes above.
-app.mount("/static", StaticFiles(directory=config.STATIC_DIR), name="static")
+app.mount("/static", RevalidatingStaticFiles(directory=config.STATIC_DIR), name="static")
 
 
 if __name__ == "__main__":

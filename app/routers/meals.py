@@ -153,10 +153,11 @@ def list_meals(request: Request, day: date | None = None, limit: int = 100):
 
 
 @router.get("/meals/{meal_id}")
-def get_meal(meal_id: int):
+def get_meal(request: Request, meal_id: int):
     with get_conn() as conn:
+        profile_id = get_profile_id(request, conn)
         meal = _fetch_meal(conn, meal_id)
-        if meal is None:
+        if meal is None or meal.get("profile_id") != profile_id:
             raise HTTPException(status_code=404, detail="Meal not found.")
         return meal
 
@@ -169,7 +170,7 @@ def duplicate_meal(request: Request, meal_id: int):
     with get_conn() as conn:
         profile_id = get_profile_id(request, conn)
         src = _fetch_meal(conn, meal_id)
-        if src is None:
+        if src is None or src.get("profile_id") != profile_id:
             raise HTTPException(status_code=404, detail="Source meal not found.")
 
         cur = conn.execute(
@@ -186,9 +187,10 @@ def duplicate_meal(request: Request, meal_id: int):
 
 
 @router.patch("/meals/{meal_id}")
-def update_meal(meal_id: int, patch: MealUpdate):
+def update_meal(request: Request, meal_id: int, patch: MealUpdate):
     with get_conn() as conn:
-        if conn.execute("SELECT 1 FROM meals WHERE id = ?", (meal_id,)).fetchone() is None:
+        profile_id = get_profile_id(request, conn)
+        if conn.execute("SELECT 1 FROM meals WHERE id = ? AND profile_id = ?", (meal_id, profile_id)).fetchone() is None:
             raise HTTPException(status_code=404, detail="Meal not found.")
 
         fields = patch.model_dump(exclude_unset=True, exclude={"items"})
@@ -197,8 +199,8 @@ def update_meal(meal_id: int, patch: MealUpdate):
         if fields:
             assignments = ", ".join(f"{k} = ?" for k in fields)
             conn.execute(
-                f"UPDATE meals SET {assignments} WHERE id = ?",
-                (*fields.values(), meal_id),
+                f"UPDATE meals SET {assignments} WHERE id = ? AND profile_id = ?",
+                (*fields.values(), meal_id, profile_id),
             )
 
         if patch.items is not None:
@@ -211,11 +213,12 @@ def update_meal(meal_id: int, patch: MealUpdate):
 
 
 @router.delete("/meals/{meal_id}", status_code=204)
-def delete_meal(meal_id: int):
+def delete_meal(request: Request, meal_id: int):
     """Remove a meal. The photo on disk is kept -- deleting a mislogged entry
     should not silently destroy the only copy of the picture."""
     with get_conn() as conn:
-        cur = conn.execute("DELETE FROM meals WHERE id = ?", (meal_id,))
+        profile_id = get_profile_id(request, conn)
+        cur = conn.execute("DELETE FROM meals WHERE id = ? AND profile_id = ?", (meal_id, profile_id))
         if cur.rowcount == 0:
             raise HTTPException(status_code=404, detail="Meal not found.")
 

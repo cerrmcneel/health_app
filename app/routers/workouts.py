@@ -1,4 +1,5 @@
 """Workout generator, equipment inventory, and session logging."""
+from datetime import date, timedelta
 import json
 import logging
 import random
@@ -16,519 +17,7 @@ log = logging.getLogger("tracker")
 
 router = APIRouter(prefix="/api/workouts", tags=["workouts"])
 
-# Standard catalog of fitness equipment
-STANDARD_EQUIPMENT = [
-    {"key": "yoga_mat", "name": "Yoga Mat", "icon": "🧘", "desc": "Floor work, core, and stretching"},
-    {"key": "jump_rope", "name": "Jump Rope", "icon": "🪢", "desc": "Cardio conditioning & HIIT intervals"},
-    {"key": "pull_up_bar", "name": "Pull-up Bar", "icon": "🚪", "desc": "Back, lats & upper body pulling"},
-    {"key": "resistance_bands", "name": "Resistance Bands", "icon": "🎗️", "desc": "Variable tension & joint-friendly strength"},
-    {"key": "dumbbells", "name": "Dumbbells", "icon": "🏋️", "desc": "Free weights for full-body progressive overload"},
-    {"key": "kettlebell", "name": "Kettlebell", "icon": "🔔", "desc": "Ballistics, power & functional strength"},
-    {"key": "bench", "name": "Workout Bench", "icon": "🛋️", "desc": "Pressing, steps & elevation"},
-    {"key": "barbell", "name": "Barbell & Plates", "icon": "🔩", "desc": "Heavy compound lifts"},
-    {"key": "dip_station", "name": "Dip Station", "icon": "🪜", "desc": "Chest, triceps & core dips"},
-    {"key": "ab_wheel", "name": "Ab Wheel", "icon": "⚙️", "desc": "Core rollout & anti-extension"},
-    {"key": "foam_roller", "name": "Foam Roller", "icon": "🪵", "desc": "Mobility & myofascial release"},
-]
-
-# Comprehensive Exercise Library with strict equipment tags
-EXERCISE_CATALOG = [
-    # --- WARM-UP (phase: warmup) ---
-    {
-        "id": "arm_circles_chest_opener",
-        "name": "Arm Circles & Chest Openers",
-        "category": "upper",
-        "equipment": "none",
-        "phase": "warmup",
-        "type": "time",
-        "default_target": "45s",
-        "target_muscles": "Shoulders, Chest",
-        "instructions": "Big controlled arm circles, alternating forward and backward with chest expansion.",
-    },
-    {
-        "id": "cat_cow_mat",
-        "name": "Cat-Cow Flow",
-        "category": "mobility",
-        "equipment": "yoga_mat",
-        "phase": "warmup",
-        "type": "reps",
-        "default_target": "10 reps",
-        "target_muscles": "Spine, Core",
-        "instructions": "Inhale arching back, exhale tucking chin and rounding spine.",
-    },
-    {
-        "id": "worlds_greatest_stretch",
-        "name": "World's Greatest Stretch",
-        "category": "mobility",
-        "equipment": "yoga_mat",
-        "phase": "warmup",
-        "type": "reps",
-        "default_target": "5 / side",
-        "target_muscles": "Hips, Thoracic Spine, Hamstrings",
-        "instructions": "Deep lunge with elbow to inside of front ankle, then rotate torso reaching arm up.",
-    },
-    {
-        "id": "jumping_jacks_warmup",
-        "name": "Jumping Jacks",
-        "category": "cardio",
-        "equipment": "none",
-        "phase": "warmup",
-        "type": "time",
-        "default_target": "45s",
-        "target_muscles": "Full Body, Calves",
-        "instructions": "Light on toes with rhythmic breathing to elevate heart rate.",
-    },
-    {
-        "id": "jump_rope_easy_rhythm",
-        "name": "Jump Rope Light Rhythm",
-        "category": "cardio",
-        "equipment": "jump_rope",
-        "phase": "warmup",
-        "type": "time",
-        "default_target": "60s",
-        "target_muscles": "Calves, Cardio, Coordination",
-        "instructions": "Light continuous basic bounce, elbows tucked, rotating from wrists.",
-    },
-    {
-        "id": "bird_dog_mat",
-        "name": "Bird-Dog Core Warm-up",
-        "category": "core",
-        "equipment": "yoga_mat",
-        "phase": "warmup",
-        "type": "reps",
-        "default_target": "8 / side",
-        "target_muscles": "Lower Back, Glutes, Core",
-        "instructions": "Opposite arm and leg reach, squeeze glute at top, keep hips square.",
-    },
-    {
-        "id": "band_pull_aparts_warmup",
-        "name": "Band Pull-Aparts",
-        "category": "upper",
-        "equipment": "resistance_bands",
-        "phase": "warmup",
-        "type": "reps",
-        "default_target": "15 reps",
-        "target_muscles": "Rear Delts, Rotator Cuff",
-        "instructions": "Hold band with arms extended straight out, pull apart squeezing shoulder blades.",
-    },
-
-    # --- CARDIO & HIIT (phase: main) ---
-    {
-        "id": "jump_rope_intervals",
-        "name": "Jump Rope Speed Intervals",
-        "category": "cardio",
-        "equipment": "jump_rope",
-        "phase": "main",
-        "type": "time",
-        "default_target": "45s on / 15s rest",
-        "target_muscles": "Calves, Cardio, Shoulders",
-        "instructions": "High cadence basic bounce or boxer step. Stay on the balls of your feet.",
-    },
-    {
-        "id": "jump_rope_high_knees",
-        "name": "Jump Rope High Knee Sprints",
-        "category": "cardio",
-        "equipment": "jump_rope",
-        "phase": "main",
-        "type": "time",
-        "default_target": "30s max effort",
-        "target_muscles": "Hip Flexors, Quads, Core, Cardio",
-        "instructions": "Drive knees up alternatively with each rope rotation. Explosive tempo.",
-    },
-    {
-        "id": "jump_rope_boxer_step",
-        "name": "Jump Rope Boxer Step",
-        "category": "cardio",
-        "equipment": "jump_rope",
-        "phase": "main",
-        "type": "time",
-        "default_target": "60s",
-        "target_muscles": "Coordination, Footwork, Cardio",
-        "instructions": "Shift weight subtly from left to right foot each skip. Relaxed rhythm.",
-    },
-    {
-        "id": "burpees_full_body",
-        "name": "Full Body Burpees",
-        "category": "cardio",
-        "equipment": "none",
-        "phase": "main",
-        "type": "reps",
-        "default_target": "10-12 reps",
-        "target_muscles": "Full Body, Cardio",
-        "instructions": "Drop chest to floor, kick back, explode up with jump and overhead clap.",
-    },
-    {
-        "id": "mountain_climbers_mat",
-        "name": "Mountain Climbers",
-        "category": "cardio",
-        "equipment": "yoga_mat",
-        "phase": "main",
-        "type": "time",
-        "default_target": "40s",
-        "target_muscles": "Core, Shoulders, Hip Flexors",
-        "instructions": "Hands firmly on mat under shoulders, drive knees toward chest alternately at quick tempo.",
-    },
-    {
-        "id": "skater_hops",
-        "name": "Lateral Skater Hops",
-        "category": "cardio",
-        "equipment": "none",
-        "phase": "main",
-        "type": "time",
-        "default_target": "45s",
-        "target_muscles": "Glute Medius, Calves, Balance",
-        "instructions": "Bound side to side, landing softly on one foot with opposite leg trailing behind.",
-    },
-
-    # --- UPPER BODY (phase: main) ---
-    {
-        "id": "push_ups_standard",
-        "name": "Strict Push-ups",
-        "category": "upper",
-        "equipment": "none",
-        "phase": "main",
-        "type": "reps",
-        "default_target": "10-15 reps",
-        "target_muscles": "Chest, Front Deltoids, Triceps",
-        "instructions": "Body straight as a plank, elbows at 45°, chest touches 2 inches above ground.",
-    },
-    {
-        "id": "diamond_push_ups",
-        "name": "Diamond Push-ups",
-        "category": "upper",
-        "equipment": "none",
-        "phase": "main",
-        "type": "reps",
-        "default_target": "8-12 reps",
-        "target_muscles": "Triceps, Inner Chest",
-        "instructions": "Thumbs and index fingers touching under sternum. Lower chest to hands.",
-    },
-    {
-        "id": "pike_push_ups",
-        "name": "Pike Push-ups",
-        "category": "upper",
-        "equipment": "none",
-        "phase": "main",
-        "type": "reps",
-        "default_target": "8-10 reps",
-        "target_muscles": "Shoulders, Triceps, Traps",
-        "instructions": "Hips pushed high into an inverted V. Lower forehead forward toward floor.",
-    },
-    {
-        "id": "chair_dips",
-        "name": "Chair / Bench Tricep Dips",
-        "category": "upper",
-        "equipment": "none",
-        "phase": "main",
-        "type": "reps",
-        "default_target": "12-15 reps",
-        "target_muscles": "Triceps, Anterior Shoulders",
-        "instructions": "Palms on edge of chair/couch, lower hips bending elbows to 90°, press up.",
-    },
-    {
-        "id": "pull_ups_bar",
-        "name": "Pull-ups (Overhand)",
-        "category": "upper",
-        "equipment": "pull_up_bar",
-        "phase": "main",
-        "type": "reps",
-        "default_target": "6-10 reps",
-        "target_muscles": "Lats, Upper Back, Biceps",
-        "instructions": "Full range from dead hang to chin clearly over bar without swinging.",
-    },
-    {
-        "id": "chin_ups_bar",
-        "name": "Chin-ups (Underhand)",
-        "category": "upper",
-        "equipment": "pull_up_bar",
-        "phase": "main",
-        "type": "reps",
-        "default_target": "6-10 reps",
-        "target_muscles": "Biceps, Lats",
-        "instructions": "Supinated grip, pull elbows down into ribcage, chin over bar.",
-    },
-    {
-        "id": "banded_bent_over_row",
-        "name": "Banded Bent-over Row",
-        "category": "upper",
-        "equipment": "resistance_bands",
-        "phase": "main",
-        "type": "reps",
-        "default_target": "12-15 reps",
-        "target_muscles": "Lats, Rhomboids, Rear Delts",
-        "instructions": "Stand on band, hinge hips 45°, pull handles to hips driving elbows back.",
-    },
-    {
-        "id": "dumbbell_overhead_press",
-        "name": "Dumbbell Overhead Press",
-        "category": "upper",
-        "equipment": "dumbbells",
-        "phase": "main",
-        "type": "reps",
-        "default_target": "10-12 reps",
-        "target_muscles": "Deltoids, Triceps",
-        "instructions": "Press dumbbells overhead from ear level, locking arms out without arching back.",
-    },
-    {
-        "id": "dumbbell_floor_press",
-        "name": "Dumbbell Floor Press",
-        "category": "upper",
-        "equipment": "dumbbells",
-        "phase": "main",
-        "type": "reps",
-        "default_target": "10-12 reps",
-        "target_muscles": "Chest, Triceps",
-        "instructions": "Lie on mat, knees bent, press dumbbells up until arms extend; elbows gently touch mat at bottom.",
-    },
-
-    # --- LOWER BODY (phase: main) ---
-    {
-        "id": "air_squats_cadence",
-        "name": "Tempo Air Squats",
-        "category": "lower",
-        "equipment": "none",
-        "phase": "main",
-        "type": "reps",
-        "default_target": "15-20 reps",
-        "target_muscles": "Quads, Glutes, Hamstrings",
-        "instructions": "Feet shoulder-width, break at hips and knees, descend below parallel, drive through whole foot.",
-    },
-    {
-        "id": "walking_lunges",
-        "name": "Walking Lunges",
-        "category": "lower",
-        "equipment": "none",
-        "phase": "main",
-        "type": "reps",
-        "default_target": "10 / leg",
-        "target_muscles": "Quads, Glutes, Core Stability",
-        "instructions": "Step forward with chest upright, back knee gently kissing floor, push through front heel.",
-    },
-    {
-        "id": "jump_squats_power",
-        "name": "Explosive Jump Squats",
-        "category": "lower",
-        "equipment": "none",
-        "phase": "main",
-        "type": "reps",
-        "default_target": "10-12 reps",
-        "target_muscles": "Fast-Twitch Quads, Calves, Glutes",
-        "instructions": "Descend into squat and explode vertically into air. Land softly absorbing impact.",
-    },
-    {
-        "id": "bulgarian_split_squat",
-        "name": "Bulgarian Split Squats",
-        "category": "lower",
-        "equipment": "none",
-        "phase": "main",
-        "type": "reps",
-        "default_target": "8-10 / leg",
-        "target_muscles": "Quads, Glutes",
-        "instructions": "Rear foot elevated on couch or step. Lower front thigh to parallel, chest proud.",
-    },
-    {
-        "id": "glute_bridge_mat",
-        "name": "Glute Bridges on Mat",
-        "category": "lower",
-        "equipment": "yoga_mat",
-        "phase": "main",
-        "type": "reps",
-        "default_target": "15-20 reps",
-        "target_muscles": "Gluteus Maximus, Hamstrings",
-        "instructions": "Lie on mat, heels near hips, bridge hips up squeezing glutes hard for 2 seconds at top.",
-    },
-    {
-        "id": "single_leg_bridge_mat",
-        "name": "Single-Leg Glute Bridge",
-        "category": "lower",
-        "equipment": "yoga_mat",
-        "phase": "main",
-        "type": "reps",
-        "default_target": "10 / leg",
-        "target_muscles": "Unilateral Glute & Hamstring",
-        "instructions": "One leg extended in air, drive through planted heel to full hip extension.",
-    },
-    {
-        "id": "wall_sit_isometric",
-        "name": "Wall Sit",
-        "category": "lower",
-        "equipment": "none",
-        "phase": "main",
-        "type": "time",
-        "default_target": "45s",
-        "target_muscles": "Quad Isometric Endurance",
-        "instructions": "Back flat against wall, thighs parallel to floor at 90°, arms at sides.",
-    },
-    {
-        "id": "dumbbell_goblet_squat",
-        "name": "Goblet Squats",
-        "category": "lower",
-        "equipment": "dumbbells",
-        "phase": "main",
-        "type": "reps",
-        "default_target": "10-12 reps",
-        "target_muscles": "Quads, Glutes, Core",
-        "instructions": "Hold dumbbell vertical at chest level, elbows tucked, squat deep between knees.",
-    },
-    {
-        "id": "kettlebell_swings",
-        "name": "Kettlebell Swings",
-        "category": "lower",
-        "equipment": "kettlebell",
-        "phase": "main",
-        "type": "reps",
-        "default_target": "15-20 reps",
-        "target_muscles": "Posterior Chain, Glutes, Hamstrings",
-        "instructions": "Powerful hip hinge, snap hips to project kettlebell to chest height. Never an arm raise.",
-    },
-
-    # --- CORE & MAT (phase: main) ---
-    {
-        "id": "forearm_plank_mat",
-        "name": "Forearm Plank",
-        "category": "core",
-        "equipment": "yoga_mat",
-        "phase": "main",
-        "type": "time",
-        "default_target": "45-60s",
-        "target_muscles": "Rectus Abdominis, Transverse Abdominis",
-        "instructions": "Elbows under shoulders on mat, tuck pelvis, squeeze glutes and quads tight.",
-    },
-    {
-        "id": "side_plank_mat",
-        "name": "Side Plank (Left & Right)",
-        "category": "core",
-        "equipment": "yoga_mat",
-        "phase": "main",
-        "type": "time",
-        "default_target": "30s / side",
-        "target_muscles": "Obliques, QL, Shoulder Stability",
-        "instructions": "Stack feet, elevate hips in a straight diagonal line, hold steady.",
-    },
-    {
-        "id": "hollow_body_hold_mat",
-        "name": "Hollow Body Hold",
-        "category": "core",
-        "equipment": "yoga_mat",
-        "phase": "main",
-        "type": "time",
-        "default_target": "30-40s",
-        "target_muscles": "Deep Anterior Core",
-        "instructions": "Press lower back completely into mat, lift shoulder blades and feet 6 inches off ground.",
-    },
-    {
-        "id": "deadbug_mat",
-        "name": "Deadbugs",
-        "category": "core",
-        "equipment": "yoga_mat",
-        "phase": "main",
-        "type": "reps",
-        "default_target": "10 / side",
-        "target_muscles": "Anti-Extension Core",
-        "instructions": "Lower opposite arm and leg while pinning lower back glued firmly to mat.",
-    },
-    {
-        "id": "bicycle_crunches_mat",
-        "name": "Bicycle Crunches",
-        "category": "core",
-        "equipment": "yoga_mat",
-        "phase": "main",
-        "type": "reps",
-        "default_target": "20 reps",
-        "target_muscles": "Obliques, Rectus Abdominis",
-        "instructions": "Slow controlled tempo, bring elbow to opposite knee rotating through upper torso.",
-    },
-    {
-        "id": "russian_twists_mat",
-        "name": "Russian Twists",
-        "category": "core",
-        "equipment": "yoga_mat",
-        "phase": "main",
-        "type": "reps",
-        "default_target": "20 total",
-        "target_muscles": "Obliques, Rotational Core",
-        "instructions": "Sit in V position with heels elevated or on mat, rotate shoulders tapping side to side.",
-    },
-    {
-        "id": "superman_hold_mat",
-        "name": "Superman Arch Hold",
-        "category": "core",
-        "equipment": "yoga_mat",
-        "phase": "main",
-        "type": "time",
-        "default_target": "30s",
-        "target_muscles": "Erector Spinae, Glutes, Rhomboids",
-        "instructions": "Lie face down, simultaneously lift chest and quads off mat squeezing posterior chain.",
-    },
-    {
-        "id": "hanging_knee_raises",
-        "name": "Hanging Knee Raises",
-        "category": "core",
-        "equipment": "pull_up_bar",
-        "phase": "main",
-        "type": "reps",
-        "default_target": "10-12 reps",
-        "target_muscles": "Lower Abs, Grip Strength",
-        "instructions": "Dead hang on bar, curl knees up toward chest without swinging or arching.",
-    },
-
-    # --- COOL-DOWN & MOBILITY (phase: cooldown) ---
-    {
-        "id": "childs_pose_mat",
-        "name": "Child's Pose",
-        "category": "mobility",
-        "equipment": "yoga_mat",
-        "phase": "cooldown",
-        "type": "time",
-        "default_target": "60s",
-        "target_muscles": "Lats, Lower Back, Hips",
-        "instructions": "Knees wide on mat, sit hips back to heels, extend arms forward, deep belly breaths.",
-    },
-    {
-        "id": "cobra_stretch_mat",
-        "name": "Cobra / Upward Dog",
-        "category": "mobility",
-        "equipment": "yoga_mat",
-        "phase": "cooldown",
-        "type": "time",
-        "default_target": "45s",
-        "target_muscles": "Abdominals, Hip Flexors",
-        "instructions": "Lie face down, press palms to extend arms, lift chest up while relaxing lower back.",
-    },
-    {
-        "id": "pigeon_pose_mat",
-        "name": "Pigeon Pose",
-        "category": "mobility",
-        "equipment": "yoga_mat",
-        "phase": "cooldown",
-        "type": "time",
-        "default_target": "45s / side",
-        "target_muscles": "Glute, Piriformis, Hip Capsule",
-        "instructions": "Front shin across mat, rear leg extended straight back. Sink hips down.",
-    },
-    {
-        "id": "seated_hamstring_mat",
-        "name": "Seated Forward Fold",
-        "category": "mobility",
-        "equipment": "yoga_mat",
-        "phase": "cooldown",
-        "type": "time",
-        "default_target": "60s",
-        "target_muscles": "Hamstrings, Calves, Back",
-        "instructions": "Legs straight on mat, reach chest forward toward toes without aggressively rounding.",
-    },
-    {
-        "id": "standing_quad_stretch",
-        "name": "Standing Quad Stretch",
-        "category": "mobility",
-        "equipment": "none",
-        "phase": "cooldown",
-        "type": "time",
-        "default_target": "30s / leg",
-        "target_muscles": "Quadriceps, Hip Flexors",
-        "instructions": "Hold ankle behind glute, pull heel to buttocks while keeping knees together.",
-    },
-]
+from app.data.exercises import EXERCISE_CATALOG, HIGH_IMPACT_IDS, STANDARD_EQUIPMENT
 
 
 def _get_profile_equipment_keys(conn, profile_id: int) -> set[str]:
@@ -568,9 +57,9 @@ def get_equipment(request: Request):
         }
 
 
-@router.post("/equipment", status_code=201)
-def add_or_toggle_equipment(request: Request, payload: EquipmentIn):
-    """Add or toggle an equipment item for the active profile."""
+@router.post("/equipment")
+def add_equipment(request: Request, payload: EquipmentIn):
+    """Add an equipment item for the active profile (idempotent add-only)."""
     key = payload.item_key.strip().lower()
     name = payload.name.strip()
     if not key or not name:
@@ -578,36 +67,28 @@ def add_or_toggle_equipment(request: Request, payload: EquipmentIn):
 
     with get_conn() as conn:
         profile_id = get_profile_id(request, conn)
-        existing = conn.execute(
-            "SELECT id FROM profile_equipment WHERE profile_id = ? AND item_key = ?",
-            (profile_id, key),
-        ).fetchone()
-
         now_str = config.now().isoformat()
-        if existing:
-            # If already exists, delete it (toggle off)
-            conn.execute(
-                "DELETE FROM profile_equipment WHERE id = ?", (existing["id"],)
-            )
-            return {"status": "removed", "item_key": key}
-        else:
-            conn.execute(
-                """INSERT INTO profile_equipment (profile_id, item_key, name, acquired_at, notes)
-                   VALUES (?, ?, ?, ?, ?)""",
-                (profile_id, key, name, now_str, payload.notes),
-            )
-            return {"status": "added", "item_key": key, "name": name}
+        conn.execute(
+            """INSERT INTO profile_equipment (profile_id, item_key, name, acquired_at, notes)
+               VALUES (?, ?, ?, ?, ?)
+               ON CONFLICT(profile_id, item_key) DO UPDATE SET name = excluded.name""",
+            (profile_id, key, name, now_str, payload.notes),
+        )
+        return {"status": "added", "item_key": key, "name": name}
 
 
 @router.delete("/equipment/{item_key}", status_code=204)
 def remove_equipment(request: Request, item_key: str):
     """Remove an equipment item from the active profile."""
+    key = item_key.strip().lower()
     with get_conn() as conn:
         profile_id = get_profile_id(request, conn)
-        conn.execute(
+        cur = conn.execute(
             "DELETE FROM profile_equipment WHERE profile_id = ? AND item_key = ?",
-            (profile_id, item_key.strip().lower()),
+            (profile_id, key),
         )
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail=f"Equipment '{key}' not found in inventory.")
 
 
 @router.post("/generate")
@@ -667,6 +148,23 @@ def generate_workout(request: Request, params: WorkoutGenerateIn):
         rounds = 4
         work_rest_str = "45s work / 15s rest" if category == "hiit" else "4 rounds"
 
+    # Level changes the dose, not just the label. Beginners get fewer rounds and
+    # longer rest; advanced athletes get more rounds and shorter rest.
+    if level == "beginner":
+        rounds = max(2, rounds - 1)
+        work_rest_str = "30s work / 30s rest" if category == "hiit" else f"{rounds} rounds"
+    elif level == "advanced":
+        rounds = rounds + 1
+        main_count += 1
+        work_rest_str = "50s work / 10s rest" if category == "hiit" else f"{rounds} rounds"
+
+    # High-impact movements are excluded for beginners: they are the ones most
+    # likely to be done badly and hurt someone on their first session.
+    if level == "beginner":
+        gentler = [e for e in cat_main if e["id"] not in HIGH_IMPACT_IDS]
+        if len(gentler) >= 3:
+            cat_main = gentler
+
     # Sample without duplicates
     selected_warmups = random.sample(warmups_pool, min(warmup_count, len(warmups_pool)))
     selected_main = random.sample(cat_main, min(main_count, len(cat_main)))
@@ -700,6 +198,7 @@ def generate_workout(request: Request, params: WorkoutGenerateIn):
         "work_rest": work_rest_str,
         "level": level,
         "intensity": level,
+        "generator": "catalog",
         "estimated_calories": est_calories,
         "equipment_used": list(used_keys),
         "warmup": selected_warmups,
@@ -801,21 +300,117 @@ Include clear exercise names, target reps or seconds, and a brief coaching cue."
             ],
             "format": schema,
             "stream": False,
-            "options": {"temperature": 0.3, "num_predict": 1200},
+            # gemma4 and other reasoning-capable models will otherwise spend the
+            # whole num_predict budget thinking and return empty content --
+            # app/services/vision.py sends this for the same reason.
+            "think": False,
+            "options": {"temperature": 0.3, "num_predict": 2000},
         }
-        async with httpx.AsyncClient(timeout=45.0) as client:
+        # A cold 12B load routinely exceeds 45s, which made the first AI
+        # generation of every session time out and silently fall back.
+        async with httpx.AsyncClient(timeout=config.OLLAMA_TIMEOUT) as client:
             resp = await client.post(f"{config.OLLAMA_URL}/api/chat", json=payload)
+            if resp.status_code == 400 and "think" in resp.text.lower():
+                # Older Ollama builds reject the field outright.
+                payload.pop("think")
+                resp = await client.post(f"{config.OLLAMA_URL}/api/chat", json=payload)
             if resp.status_code == 200:
-                content = resp.json().get("message", {}).get("content", "{}")
-                data = json.loads(content)
-                data["equipment_used"] = equip_names
-                data["estimated_calories"] = round(params.duration_min * 8)
-                return data
-    except Exception as exc:
+                message = resp.json().get("message") or {}
+                content = (message.get("content") or "").strip()
+                if not content:
+                    raise ValueError(
+                        "model returned no content"
+                        + (" (it reasoned instead of answering)" if message.get("thinking") else "")
+                    )
+                data = _canonicalize_ai_routine(json.loads(content), params, owned_keys)
+                if data is not None:
+                    data["equipment_used"] = equip_names
+                    data["estimated_calories"] = round(params.duration_min * 8)
+                    data["generator"] = "ai"
+                    return data
+                log.warning("AI routine had no usable main-circuit exercises; falling back")
+            else:
+                log.warning("Ollama returned HTTP %s for workout generation", resp.status_code)
+    except (httpx.HTTPError, json.JSONDecodeError, ValueError, KeyError, TypeError) as exc:
         log.warning("Local AI workout generation fallback: %s", exc)
 
-    # Seamless fallback to offline generator if Ollama is unavailable
-    return generate_workout(request, params)
+    # Seamless fallback to the offline generator if Ollama is unavailable. The
+    # marker lets the UI say so rather than passing this off as the AI's work.
+    fallback = generate_workout(request, params)
+    fallback["generator"] = "offline-fallback"
+    return fallback
+
+
+def _canonicalize_ai_routine(
+    data: dict[str, Any], params: WorkoutGenerateIn, owned_keys: set[str]
+) -> dict[str, Any] | None:
+    """Reshape free-form model output into the contract the UI renders.
+
+    The model returns arbitrarily-named `phases`; the frontend reads
+    `warmup`/`main`/`cooldown` lists of exercises with the same field names the
+    catalog generator emits. Returns None when nothing usable survives, so the
+    caller can fall back.
+
+    Exercises requiring equipment the profile does not own are dropped here. The
+    system prompt asks the model to respect the inventory, but a prompt is a
+    request, not a constraint -- this is the constraint.
+    """
+    buckets: dict[str, list[dict[str, Any]]] = {"warmup": [], "main": [], "cooldown": []}
+
+    for phase in data.get("phases") or []:
+        if not isinstance(phase, dict):
+            continue
+        label = str(phase.get("name") or "").lower()
+        if "warm" in label:
+            key = "warmup"
+        elif "cool" in label or "stretch" in label or "down" in label:
+            key = "cooldown"
+        else:
+            key = "main"
+
+        for ex in phase.get("exercises") or []:
+            if not isinstance(ex, dict):
+                continue
+            name = str(ex.get("name") or "").strip()
+            if not name:
+                continue
+            equipment = str(ex.get("equipment") or "none").strip().lower().replace(" ", "_")
+            if equipment in ("", "bodyweight", "none", "no_equipment"):
+                equipment = "none"
+            if equipment not in owned_keys:
+                log.info("dropped AI exercise '%s' requiring unowned '%s'", name, equipment)
+                continue
+
+            target = str(ex.get("target") or "").strip()
+            buckets[key].append({
+                "id": "",
+                "name": name[:120],
+                "category": str(ex.get("category") or params.category),
+                "equipment": equipment,
+                "phase": key,
+                "type": "time" if _looks_timed(target) else "reps",
+                "default_target": target or "10 reps",
+                "target_muscles": str(ex.get("target_muscles") or ""),
+                "instructions": str(ex.get("instructions") or "")[:500],
+            })
+
+    if not buckets["main"]:
+        return None
+
+    data.update(buckets)
+    data.setdefault("category", params.category)
+    data.setdefault("duration_min", params.duration_min)
+    data.setdefault("level", params.level)
+    data.setdefault("intensity", params.level)
+    data.setdefault("rounds", 3)
+    data.setdefault("work_rest", f"{data['rounds']} rounds")
+    return data
+
+
+def _looks_timed(target: str) -> bool:
+    """'45s' / '30 sec' / '1 min' are time-based; '10 reps' is not."""
+    low = target.lower()
+    return any(unit in low for unit in ("s", "sec", "min")) and "rep" not in low
 
 
 @router.post("", status_code=201)
@@ -844,16 +439,24 @@ def log_workout(request: Request, payload: WorkoutLogIn):
 
 
 @router.get("")
-def list_workouts(request: Request, limit: int = 30):
+def list_workouts(request: Request, day: date | None = None, limit: int = 30):
     """List recent completed workouts for the active profile."""
     with get_conn() as conn:
         profile_id = get_profile_id(request, conn)
-        rows = conn.execute(
-            """SELECT * FROM workouts
-               WHERE profile_id = ?
-               ORDER BY day DESC, id DESC LIMIT ?""",
-            (profile_id, min(max(limit, 1), 100)),
-        ).fetchall()
+        if day is not None:
+            rows = conn.execute(
+                """SELECT * FROM workouts
+                   WHERE profile_id = ? AND day = ?
+                   ORDER BY id DESC LIMIT ?""",
+                (profile_id, day.isoformat(), min(max(limit, 1), 100)),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """SELECT * FROM workouts
+                   WHERE profile_id = ?
+                   ORDER BY day DESC, id DESC LIMIT ?""",
+                (profile_id, min(max(limit, 1), 100)),
+            ).fetchall()
 
         results = []
         for r in rows:
@@ -862,10 +465,11 @@ def list_workouts(request: Request, limit: int = 30):
             item["routine"] = json.loads(item["routine_json"] or "[]")
             results.append(item)
 
+        cutoff = (config.now().date() - timedelta(days=6)).isoformat()
         week_count = conn.execute(
             """SELECT COUNT(*) as cnt, COALESCE(SUM(duration_min), 0) as total_min
-               FROM workouts WHERE profile_id = ? AND day >= date('now', '-7 days')""",
-            (profile_id,),
+               FROM workouts WHERE profile_id = ? AND day >= ?""",
+            (profile_id, cutoff),
         ).fetchone()
 
         return {

@@ -46,8 +46,9 @@ Commercial fitness apps have shifted almost entirely to aggressive monthly paywa
 - **7-Day Trailing Moving Average**: Automatically smooths out water weight and sodium fluctuations so you see your true trend rate.
 - **Touch & Mouse Crosshair Scrubber**: Inspect individual weigh-in data points and moving average values on hover/drag.
 
-### 👥 6. Multi-Profile Household Support
+### 👥 6. Multi-Profile Household & Guided Setup Wizard
 - Switch between different members of your household with one tap.
+- **Guided Setup Interview**: Step-by-step onboarding deriving scientific BMR (Mifflin-St Jeor), TDEE, and ISSN macro recommendations ($1.6 - 2.2\text{ g/kg}$ protein, $\ge 20\%$ fat floor), initial weigh-in, and equipment inventory.
 - Each profile maintains completely independent calorie/macro targets, weight history, progress photos, and equipment inventories.
 
 ### 📱 7. Mobile-First Progressive Web App (PWA)
@@ -123,7 +124,10 @@ If you do not have Ollama or a GPU, the app runs smoothly as a lightweight, ligh
 
 ### Setting up Ollama (Optional)
 
-1. Install Ollama from [ollama.com](https://ollama.com).
+1. Install Ollama from [ollama.com](https://ollama.com). Note: **Gemma 4 requires Ollama 0.22 or newer** for vision support:
+   ```bash
+   ollama --version   # verify >= 0.22
+   ```
 2. Pull a vision-capable model:
    ```bash
    ollama pull gemma4:12b
@@ -146,13 +150,13 @@ If you already run a reverse proxy terminating SSL on your homelab, simply point
 - **Forward Port**: `8000`
 - Enable `Websockets Support` and pass `Host`, `X-Real-IP`, `X-Forwarded-For`, and `X-Forwarded-Proto https` headers.
 
-### 2. Tailscale (Zero Port Forwarding + Free Trusted SSL)
-If you use Tailscale on your homelab:
+### 2. Tailscale (Recommended Default: Zero Port Forwarding + Free Trusted SSL)
+**Do not port-forward this application to the public internet.** The recommended remote access method is Tailscale:
 ```bash
 tailscale serve --bg --https=443 http://localhost:8000
 ```
-This serves the app at `https://<your-device>.<tailnet>.ts.net` with an automatic Let's Encrypt certificate. This allows:
-1. Access from anywhere outside the home without opening firewall ports.
+This serves the app at `https://<your-device>.<tailnet>.ts.net` with an automatic Let's Encrypt certificate:
+1. Access from anywhere outside the home with zero open router/firewall ports.
 2. Trusted HTTPS that satisfies iOS and Android camera and PWA install requirements.
 
 ### 3. Windows Service (Auto-Start at Boot)
@@ -161,6 +165,12 @@ To run natively in the background on a Windows machine:
 powershell -ExecutionPolicy Bypass -File install_autostart.ps1
 ```
 This registers a scheduled background task that starts automatically with Windows, runs silently in the background without any open console window, and logs to `logs/tracker.log`.
+
+### 4. Optional Shared-Secret Security Gate (`APP_PASSWORD`)
+To protect your health records on a shared local network or guest Wi-Fi:
+- Set `APP_PASSWORD=your_secure_password` in `.env` or `docker-compose.yml`.
+- When set, all requests are gated behind `/login`, returning 401 on unauthorized API access and setting a 30-day constant-time HMAC-signed session cookie upon authentication.
+- When unset, auth is completely disabled for zero-friction local usage.
 
 ---
 
@@ -171,8 +181,8 @@ Mobile web browsers (iOS Safari, Android Chrome) enforce a strict security polic
 If you open `http://192.168.1.x:8000` over plain HTTP on your phone, meal logging and workouts work fine, but the browser blocks camera access.
 
 Choose one of the following to use the live camera:
-1. **Built-in HTTPS Proxy**: Open `https://<your-ip>:8443` (accept the self-signed warning once).
-2. **Tailscale**: Access via `https://<node>.<tailnet>.ts.net`.
+1. **Tailscale (Recommended)**: Access via `https://<node>.<tailnet>.ts.net`.
+2. **Built-in HTTPS Proxy**: Open `https://<your-ip>:8443` (or ports `443` / `80` if free on your host) and accept the local self-signed certificate.
 3. **Your Own Reverse Proxy**: Access via your local domain with valid SSL.
 
 ---
@@ -183,18 +193,26 @@ Everything is stored inside a single directory:
 ```
 storage/fitness_tracker/
 ├── tracker.db          # SQLite database (WAL mode, foreign keys enabled)
-├── front/              # Front progress photos (YYYY-MM-DD_front.jpg)
-├── profile/            # Profile progress photos (YYYY-MM-DD_profile.jpg)
+├── front/              # Front progress photos (YYYY-MM-DD_front_*.jpg)
+├── profile/            # Profile progress photos (YYYY-MM-DD_profile_*.jpg)
 ├── meals/              # Captured meal photos (YYYY/MM/*.jpg)
 └── _pending/           # Temporary staging for unconfirmed photo analyses
 ```
 
-### Backing Up
-To back up your entire fitness data, simply back up the `storage/` directory:
-```bash
-tar -czvf health_app_backup_$(date +%F).tar.gz storage/
-```
-To restore, unpack it back into place. That's it!
+### Backing Up & Data Portability
+- **One-Click UI Download**: Click **"💾 Download Data (.zip)"** in the profile switcher modal to download a complete, WAL-consistent ZIP archive of `tracker.db` and all stored media.
+- **REST Endpoint**: `GET /api/backup/export` streams the full backup archive on demand.
+- **Direct Filesystem Backup**:
+  ```bash
+  tar -czvf health_app_backup_$(date +%F).tar.gz storage/
+  ```
+  To restore, unpack it back into place. That's it!
+
+---
+
+## Technical Architecture
+
+Detailed architectural documentation, concurrency invariants, SQLite WAL mode guidelines, and security models are documented in [**ARCHITECTURE.md**](ARCHITECTURE.md).
 
 ---
 
@@ -202,22 +220,29 @@ To restore, unpack it back into place. That's it!
 
 ```
 Health_App/
+├── .github/workflows/
+│   └── docker-publish.yml # Automated multi-arch GHCR container build
 ├── app/
 │   ├── main.py            # FastAPI app setup, page routes, lifecycle hooks
+│   ├── auth.py            # Optional APP_PASSWORD shared-secret gate & session signing
 │   ├── config.py          # Environment settings, directory resolution, timezone
 │   ├── db.py              # SQLite connection, schema migrations, automatic seeding
 │   ├── models.py          # Pydantic data schemas
+│   ├── data/
+│   │   └── exercises.py   # 75-movement exercise library & standard equipment
 │   ├── routers/
+│   │   ├── backup.py      # Standalone WAL-safe data export & ZIP packager
 │   │   ├── meals.py       # Meal logging & Ollama photo analysis
 │   │   ├── photos.py      # Progress photo capture, ghost retrieval & media serving
 │   │   ├── stats.py       # Macro totals, daily stats & system health
-│   │   ├── profiles.py    # Multi-profile CRUD & target preferences
+│   │   ├── profiles.py    # Multi-profile CRUD, onboarding & target preferences
 │   │   ├── weights.py     # Body weight tracking & moving averages
 │   │   ├── knowledge.py   # Nutrition science knowledge & interactive Q&A
 │   │   └── workouts.py    # Equipment inventory & strictly constrained routine designer
 │   └── services/
 │       ├── images.py      # EXIF rotation, thumbnail generation & path security
 │       ├── knowledge.py   # Sports nutrition literature extractor & prompt builder
+│       ├── targets.py     # Mifflin-St Jeor BMR, TDEE & ISSN macro distribution
 │       └── vision.py      # Ollama client, JSON Schema constraints & fallback
 ├── static/
 │   ├── index.html         # Dashboard (calorie ring, macros, today's workout)
@@ -227,13 +252,23 @@ Health_App/
 │   ├── capture.html       # Ghost-overlay camera viewfinder
 │   ├── css/app.css        # Mobile-first dark theme CSS (zero external CDNs)
 │   └── js/                # Native ES modules (api, dashboard, log, workout, progress, capture)
-├── Dockerfile             # Multi-stage container definition
-├── docker-compose.yml     # Universal homelab compose file with auto-cert SSL
+├── tests/                 # Full automated test suite (pytest)
+├── Dockerfile             # Container definition
+├── docker-compose.yml     # Universal homelab compose file with auto-cert SSL (ports 80, 443, 8443)
+├── ARCHITECTURE.md        # Technical architecture, system map & design invariants
+├── CONTRIBUTING.md        # Development guidelines, landmines & testing standards
+├── LICENSE                # GNU Affero General Public License v3.0 (AGPL-3.0)
 └── README.md              # Documentation
 ```
 
 ---
 
+## Contributing
+
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) for architectural invariants, testing practices, and hard constraints before making changes.
+
+---
+
 ## License
 
-Open source and free forever. Built for everyone who values their health and privacy over monthly SaaS subscriptions.
+Licensed under the GNU Affero General Public License v3.0 (AGPL-3.0). See [LICENSE](LICENSE) for full text. Built for everyone who values their health and privacy over monthly SaaS subscriptions.

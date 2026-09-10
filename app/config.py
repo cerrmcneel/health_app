@@ -13,7 +13,7 @@ load_dotenv(BASE_DIR / ".env")
 def _resolve(value: str) -> Path:
     """Relative paths in .env are resolved against the project root, not cwd."""
     p = Path(value).expanduser()
-    return p if p.is_absolute() else (BASE_DIR / p).resolve()
+    return p.resolve() if p.is_absolute() else (BASE_DIR / p).resolve()
 
 
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434").rstrip("/")

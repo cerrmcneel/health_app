@@ -35,6 +35,13 @@
   </header>
 
   <div id="health" class="banner hidden"></div>
+  <div id="onboarding-prompt" class="banner warn hidden" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+    <div>
+      <strong>✨ Set up your profile</strong>
+      <p style="margin:2px 0 0;font-size:12px;opacity:.9">Personalize your calorie targets, science-based macros, and equipment inventory.</p>
+    </div>
+    <button type="button" id="btn-start-onboarding" class="btn btn-primary" style="padding:6px 14px;font-size:12.5px;white-space:nowrap">Start Setup</button>
+  </div>
 
   <section class="card">
     <div style="display:flex;align-items:center;justify-content:space-between">
@@ -201,6 +208,218 @@
         <input type="number" id="new-p-cal" value="2200" step="10" min="500">
       </div>
       <button type="submit" class="btn btn-primary full" style="margin-top:12px">Create Profile</button>
+    </form>
+    <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:12px;color:var(--muted)">Data Portability</span>
+      <a href="/api/backup/export" class="meal-btn" style="text-decoration:none;padding:5px 10px;font-size:12px">💾 Download Data (.zip)</a>
+    </div>
+  </div>
+</div>
+
+<!-- Guided Profile Onboarding Modal -->
+<div id="onboarding-modal" class="modal-overlay hidden">
+  <div class="modal-card onboarding-card" style="max-width:540px;width:95%;max-height:90vh;overflow-y:auto">
+    <div class="modal-head" style="margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:20px">🎯</span>
+        <div>
+          <h3 style="margin:0;font-size:17px">Guided Profile Setup</h3>
+          <span id="onboard-step-indicator" style="font-size:12px;color:var(--muted)">Step 1 of 6</span>
+        </div>
+      </div>
+      <button class="modal-close" data-close="onboarding-modal">&times;</button>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="bar" style="height:4px;margin-bottom:18px;background:var(--surface-2)">
+      <i id="onboard-progress-bar" style="width:16.6%;background:var(--accent);transition:width .3s ease"></i>
+    </div>
+
+    <form id="onboarding-form">
+      <input type="hidden" id="onboard-profile-id">
+
+      <!-- Step 1: Identity & Avatar -->
+      <div class="onboard-step" data-step="1">
+        <h4 style="margin:0 0 6px;font-size:15px">Who is this profile for?</h4>
+        <p style="font-size:12.5px;color:var(--muted);margin:0 0 14px">Give your profile a personal name and choose an avatar theme.</p>
+        <div class="field">
+          <label for="onboard-name">Profile Name</label>
+          <input type="text" id="onboard-name" placeholder="e.g. Alex" maxlength="50" required>
+        </div>
+        <div class="field" style="margin-top:12px">
+          <label>Avatar Color</label>
+          <div class="color-picker" id="onboard-colors">
+            <div class="color-opt selected" data-color="#3b82f6" style="background:#3b82f6"></div>
+            <div class="color-opt" data-color="#10b981" style="background:#10b981"></div>
+            <div class="color-opt" data-color="#f59e0b" style="background:#f59e0b"></div>
+            <div class="color-opt" data-color="#ec4899" style="background:#ec4899"></div>
+            <div class="color-opt" data-color="#8b5cf6" style="background:#8b5cf6"></div>
+            <div class="color-opt" data-color="#06b6d4" style="background:#06b6d4"></div>
+            <div class="color-opt" data-color="#ef4444" style="background:#ef4444"></div>
+            <div class="color-opt" data-color="#84cc16" style="background:#84cc16"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2: Body Stats & Baseline -->
+      <div class="onboard-step hidden" data-step="2">
+        <h4 style="margin:0 0 6px;font-size:15px">Body Metrics</h4>
+        <p style="font-size:12.5px;color:var(--muted);margin:0 0 14px">Used to calculate your basal metabolic rate (Mifflin-St Jeor) and exact protein needs.</p>
+        
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+          <div>
+            <label for="onboard-sex" style="font-size:12px">Biological Sex</label>
+            <select id="onboard-sex" style="width:100%;height:38px;background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:0 8px">
+              <option value="male" selected>Male</option>
+              <option value="female">Female</option>
+              <option value="other">Other / Neutral</option>
+            </select>
+          </div>
+          <div>
+            <label for="onboard-birth-year" style="font-size:12px">Birth Year</label>
+            <input type="number" id="onboard-birth-year" placeholder="1995" min="1920" max="2020" step="1">
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+          <div>
+            <label for="onboard-height" style="font-size:12px">Height (cm)</label>
+            <input type="number" id="onboard-height" placeholder="178" min="80" max="250" step="0.5">
+          </div>
+          <div>
+            <label for="onboard-weight" style="font-size:12px">Current Weight (kg)</label>
+            <input type="number" id="onboard-weight" placeholder="75.0" min="30" max="300" step="0.1">
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="onboard-activity" style="font-size:12px">Daily Activity Level</label>
+          <select id="onboard-activity" style="width:100%;height:38px;background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:0 8px">
+            <option value="sedentary">Sedentary (desk job, minimal exercise &times; 1.2)</option>
+            <option value="light">Lightly Active (1-3 days/wk training &times; 1.375)</option>
+            <option value="moderate" selected>Moderately Active (3-5 days/wk training &times; 1.55)</option>
+            <option value="active">Very Active (6-7 days/wk heavy training &times; 1.725)</option>
+            <option value="very_active">Extremely Active (physical job + 2x training &times; 1.9)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Step 3: Goal & Pace -->
+      <div class="onboard-step hidden" data-step="3">
+        <h4 style="margin:0 0 6px;font-size:15px">Primary Goal</h4>
+        <p style="font-size:12.5px;color:var(--muted);margin:0 0 14px">Choose your target energy trajectory and weekly rate.</p>
+        
+        <div class="presets-row" id="onboard-goal-row" style="margin-bottom:14px">
+          <button type="button" class="preset-btn" data-goal="lose">Fat Loss (Cut)</button>
+          <button type="button" class="preset-btn active" data-goal="maintain">Maintain</button>
+          <button type="button" class="preset-btn" data-goal="gain">Muscle Gain (Bulk)</button>
+        </div>
+
+        <div id="onboard-rate-container" class="field hidden">
+          <label for="onboard-rate" style="font-size:12px">Target Rate of Change</label>
+          <select id="onboard-rate" style="width:100%;height:38px;background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:0 8px">
+            <option value="0.25">Conservative (0.25 kg / week)</option>
+            <option value="0.5" selected>Standard (0.50 kg / week &bull; Recommended)</option>
+            <option value="0.75">Aggressive (0.75 kg / week)</option>
+            <option value="1.0">Maximum safe limit (1.0 kg / week)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Step 4: Macro Targets with Live Preview -->
+      <div class="onboard-step hidden" data-step="4">
+        <h4 style="margin:0 0 6px;font-size:15px">Evidence-Based Macro Targets</h4>
+        <p style="font-size:12.5px;color:var(--muted);margin:0 0 12px">Calculated using Mifflin-St Jeor BMR and ISSN athletic nutrition standards.</p>
+
+        <!-- Live Calculation Box -->
+        <div id="onboard-calc-box" style="background:var(--surface-2);border-radius:10px;padding:12px;margin-bottom:14px;border:1px solid var(--line)">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
+            <span style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Daily Energy Target</span>
+            <span style="font-size:18px;font-weight:700;color:var(--accent)" id="onboard-preview-cals">2200 kcal</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:6px;text-align:center;margin-bottom:10px">
+            <div style="background:var(--surface);padding:6px;border-radius:6px;border:1px solid var(--line)">
+              <div style="font-size:10px;color:var(--p-color);font-weight:600">PROTEIN</div>
+              <div style="font-size:14px;font-weight:700" id="onboard-preview-pro">160g</div>
+            </div>
+            <div style="background:var(--surface);padding:6px;border-radius:6px;border:1px solid var(--line)">
+              <div style="font-size:10px;color:var(--c-color);font-weight:600">CARBS</div>
+              <div style="font-size:14px;font-weight:700" id="onboard-preview-car">220g</div>
+            </div>
+            <div style="background:var(--surface);padding:6px;border-radius:6px;border:1px solid var(--line)">
+              <div style="font-size:10px;color:var(--f-color);font-weight:600">FAT</div>
+              <div style="font-size:14px;font-weight:700" id="onboard-preview-fat">70g</div>
+            </div>
+          </div>
+          <div id="onboard-preview-expl" style="font-size:11.5px;color:var(--muted);line-height:1.4;white-space:pre-line"></div>
+        </div>
+
+        <details style="margin-top:8px">
+          <summary style="font-size:12px;color:var(--muted);cursor:pointer">Custom overrides (optional)</summary>
+          <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:6px;margin-top:8px">
+            <div><label style="font-size:10px">Calories</label><input type="number" id="onboard-t-cal" min="500"></div>
+            <div><label style="font-size:10px">Protein (g)</label><input type="number" id="onboard-t-pro" min="0"></div>
+            <div><label style="font-size:10px">Carbs (g)</label><input type="number" id="onboard-t-car" min="0"></div>
+            <div><label style="font-size:10px">Fat (g)</label><input type="number" id="onboard-t-fat" min="0"></div>
+          </div>
+        </details>
+      </div>
+
+      <!-- Step 5: Equipment Inventory -->
+      <div class="onboard-step hidden" data-step="5">
+        <h4 style="margin:0 0 6px;font-size:15px">Equipment Checklist</h4>
+        <p style="font-size:12.5px;color:var(--muted);margin:0 0 10px">Check the gear you have at home. The Studio will only design routines for what you own.</p>
+        
+        <div style="margin-bottom:10px">
+          <button type="button" id="onboard-btn-bodyweight" class="meal-btn" style="font-size:12px;padding:4px 10px">🤸 Only Bodyweight (No Gear)</button>
+        </div>
+
+        <div id="onboard-equipment-grid" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(140px, 1fr));gap:8px;max-height:220px;overflow-y:auto;padding:2px">
+          <!-- Populated dynamically from standard catalog -->
+        </div>
+      </div>
+
+      <!-- Step 6: Training Preferences & Schedule -->
+      <div class="onboard-step hidden" data-step="6">
+        <h4 style="margin:0 0 6px;font-size:15px">Training Preferences</h4>
+        <p style="font-size:12.5px;color:var(--muted);margin:0 0 14px">Set your default session length and difficulty level.</p>
+
+        <div class="field" style="margin-bottom:12px">
+          <label style="font-size:12px">Default Session Duration</label>
+          <div class="pills-row" id="onboard-duration-pills">
+            <button type="button" class="pill-btn" data-val="15">⚡ 15 min Express</button>
+            <button type="button" class="pill-btn active" data-val="25">⏱️ 25 min Standard</button>
+            <button type="button" class="pill-btn" data-val="40">🔥 40 min Full</button>
+          </div>
+        </div>
+
+        <div class="field" style="margin-bottom:12px">
+          <label style="font-size:12px">Difficulty Level</label>
+          <div class="pills-row" id="onboard-level-pills">
+            <button type="button" class="pill-btn" data-val="beginner">Beginner</button>
+            <button type="button" class="pill-btn active" data-val="intermediate">Intermediate</button>
+            <button type="button" class="pill-btn" data-val="advanced">Advanced</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="onboard-days-per-week" style="font-size:12px">Target Workouts per Week</label>
+          <select id="onboard-days-per-week" style="width:100%;height:38px;background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:0 8px">
+            <option value="2">2 days / week</option>
+            <option value="3" selected>3 days / week</option>
+            <option value="4">4 days / week</option>
+            <option value="5">5 days / week</option>
+            <option value="6">6 days / week</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Step Footer Controls -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:20px;padding-top:14px;border-top:1px solid var(--line)">
+        <button type="button" id="onboard-prev-btn" class="btn" style="padding:7px 14px;display:none">&larr; Back</button>
+        <button type="button" id="onboard-skip-btn" class="meal-btn" style="font-size:12px">Skip</button>
+        <button type="button" id="onboard-next-btn" class="btn btn-primary" style="padding:7px 18px">Next &rarr;</button>
+      </div>
     </form>
   </div>
 </div>
