@@ -105,4 +105,4 @@ Calorie and macronutrient calculations follow established clinical formulas:
   - When enabled, authenticates via constant-time HMAC comparison and sets an `HttpOnly`, `SameSite=Lax` signed cookie valid for 30 days.
   - In-memory rate limiting throttles brute-force attempts.
 - **Zero-Lock-in Data Export**:
-  `GET /api/backup/export` performs an in-memory SQLite `.backup()` checkpoint and bundles the database and all user media into a downloadable `.zip` file.
+  `GET /api/backup/export` builds a self-contained ZIP archive. By default (`scope=profile`), it serialises an isolated SQLite database containing only the requesting profile's records and copies exclusively their personal media files. Administrative whole-instance backup (`?scope=all`) requires `APP_PASSWORD` and the default profile. The profile condition is a guard rail, not a boundary -- the active profile comes from a client-supplied header, so it is only meaningful alongside the shared password. Binding the profile to the session cookie is tracked as Task 3.7 Layer 2.

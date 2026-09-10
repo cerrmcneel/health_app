@@ -123,6 +123,8 @@ def test_rate_limit_survives_spoofed_forwarded_for(monkeypatch):
         for i in range(20)
     ]
     assert 429 in statuses, "rotating X-Forwarded-For bypassed the login rate limit"
+    from app import auth
+    auth._failed_attempts.clear()
 
 
 def test_derived_key_is_cached(monkeypatch):

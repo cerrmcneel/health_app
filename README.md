@@ -200,8 +200,10 @@ storage/fitness_tracker/
 ```
 
 ### Backing Up & Data Portability
-- **One-Click UI Download**: Click **"💾 Download Data (.zip)"** in the profile switcher modal to download a complete, WAL-consistent ZIP archive of `tracker.db` and all stored media.
-- **REST Endpoint**: `GET /api/backup/export` streams the full backup archive on demand.
+- **One-Click UI Download**: Click **"💾 Download Data (.zip)"** in the profile switcher modal to download a standalone, WAL-consistent ZIP archive containing the active profile's database records and personal media files.
+- **REST Endpoint**: `GET /api/backup/export` streams the requesting profile's isolated dataset by default. A full-instance dump (`GET /api/backup/export?scope=all`) requires `APP_PASSWORD` to be configured and the active profile to be the default one, returning 403 Forbidden otherwise. Note that the profile check is a guard rail rather than a security boundary: the active profile is supplied by the client, so any household member who knows the password can reach the full dump. `APP_PASSWORD` is a single shared secret, so this grants nothing they could not already obtain.
+> [!WARNING]
+> **LAN Data Exposure Notice**: When `APP_PASSWORD` is unset (the default for zero-friction single-user homelab setups), any device or user on your local network can reach `GET /api/backup/export` to download health records and body photos. If your instance is accessible to untrusted LAN devices, guest Wi-Fi, or roommates, configure `APP_PASSWORD` (see [Optional Shared-Secret Security Gate](#4-optional-shared-secret-security-gate-app_password)) or restrict remote access strictly via [Tailscale](#2-tailscale-recommended-default-zero-port-forwarding--free-trusted-ssl).
 - **Direct Filesystem Backup**:
   ```bash
   tar -czvf health_app_backup_$(date +%F).tar.gz storage/

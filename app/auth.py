@@ -311,7 +311,14 @@ async def login(request: Request):
 
 @router.get("/logout", include_in_schema=False)
 @router.post("/logout", include_in_schema=False)
-def logout():
+def logout(request: Request):
     resp = RedirectResponse(url="/login", status_code=303)
-    resp.delete_cookie(COOKIE_NAME)
+    resp.delete_cookie(
+        COOKIE_NAME,
+        httponly=True,
+        samesite="lax",
+        secure=_is_secure(request),
+        path="/",
+    )
     return resp
+

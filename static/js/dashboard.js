@@ -43,6 +43,11 @@ async function loadProfiles() {
       $('profile-avatar').textContent = currentProfile.name.charAt(0).toUpperCase();
       $('profile-avatar').style.background = currentProfile.avatar_color || '#3b82f6';
 
+      const backupLink = $('download-backup-btn');
+      if (backupLink) {
+        backupLink.href = `/api/backup/export?profile_id=${encodeURIComponent(currentProfile.id)}`;
+      }
+
       const promptEl = $('onboarding-prompt');
       if (promptEl) {
         if (!currentProfile.onboarded_at) {
