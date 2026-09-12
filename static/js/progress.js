@@ -1,4 +1,4 @@
-import { getJSON, postJSON, postForm, prettyDate, shiftDay, todayISO, toast, esc, fmt } from './api.js';
+import { getJSON, postJSON, patchJSON, postForm, prettyDate, shiftDay, todayISO, toast, esc, fmt, getActiveProfileId } from './api.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -319,11 +319,24 @@ $('quick-weight-form')?.addEventListener('submit', async (e) => {
    ============================================================ */
 
 async function loadPhotos() {
-  const { photos } = await getJSON('/api/photos?limit=400');
+  const [photoData, statusData] = await Promise.all([
+    getJSON('/api/photos?limit=400'),
+    getJSON('/api/photos/status').catch(() => ({ track_back_photo: false })),
+  ]);
+  const photos = photoData.photos || [];
   allPhotos = photos;
   $('count').textContent = photos.length
     ? `${photos.length} photo${photos.length === 1 ? '' : 's'}`
     : 'No photos yet';
+
+  const trackBack = Boolean(statusData.track_back_photo);
+  const hasBackPhotos = photos.some((p) => p.pose === 'back');
+  const toggleBack = $('toggle-track-back');
+  if (toggleBack) toggleBack.checked = trackBack;
+  const segBtnBack = $('seg-btn-back');
+  if (segBtnBack) {
+    segBtnBack.classList.toggle('hidden', !trackBack && !hasBackPhotos);
+  }
 
   $('gallery').innerHTML = photos.length
     ? photos.map((p) => `<figure class="gallery-item">
@@ -658,6 +671,28 @@ $('pose-seg')?.addEventListener('click', (e) => {
   btn.classList.add('active');
   activePose = btn.dataset.pose || 'front';
   renderCompare();
+});
+
+// Toggle tracking back photos
+$('toggle-track-back')?.addEventListener('change', async (e) => {
+  const enabled = e.target.checked;
+  const pid = getActiveProfileId() || 1;
+  try {
+    await patchJSON(`/api/profiles/${pid}`, { track_back_photo: enabled ? 1 : 0 });
+    toast(enabled ? 'Back photo tracking enabled' : 'Back photo tracking disabled');
+    const hasBackPhotos = allPhotos.some((p) => p.pose === 'back');
+    $('seg-btn-back')?.classList.toggle('hidden', !enabled && !hasBackPhotos);
+    if (!enabled && activePose === 'back') {
+      activePose = 'front';
+      document.querySelectorAll('#pose-seg .seg-btn').forEach((b) => {
+        b.classList.toggle('active', b.dataset.pose === 'front');
+      });
+      renderCompare();
+    }
+  } catch (err) {
+    e.target.checked = !enabled;
+    toast(`Failed to update setting: ${err.message}`, true);
+  }
 });
 
 // --- Upload Progress Photo Modal Handlers ---

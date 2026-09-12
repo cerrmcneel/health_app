@@ -5,20 +5,22 @@
 // Because every layer is cropped identically, what lines up on screen lines up in
 // the stored file -- so tomorrow's ghost is a faithful reference for today's shot.
 
-import { getJSON, postForm, toast, esc } from './api.js';
+import { getJSON, postForm, patchJSON, toast, esc, getActiveProfileId } from './api.js';
 
 const $ = (id) => document.getElementById(id);
 
-const POSE_ORDER = ['front', 'profile'];
 const POSE_HINT = {
   front: 'Face the camera square-on, arms relaxed at your sides.',
   profile: 'Turn 90°. Same spot, same distance, same posture.',
+  back: 'Turn your back to the camera, arms relaxed at your sides.',
 };
 
+let poseOrder = ['front', 'profile'];
+let trackBackPhoto = false;
 let stream = null;
 let facing = 'environment';
 let pose = 'front';
-let queue = [...POSE_ORDER];
+let queue = [...poseOrder];
 let savedTimer = 3;
 try {
   const val = localStorage.getItem('capture_timer_seconds');
@@ -92,9 +94,10 @@ function stopCamera() {
 // --- pose flow ---
 async function loadPose(next) {
   pose = next;
-  const index = POSE_ORDER.indexOf(pose) + 1;
-  $('pose-label').textContent = pose === 'front' ? 'Front' : 'Profile';
-  $('pose-sub').textContent = `Pose ${index} of ${POSE_ORDER.length} · ${POSE_HINT[pose]}`;
+  const index = poseOrder.indexOf(pose) + 1;
+  const labelMap = { front: 'Front', profile: 'Profile', back: 'Back' };
+  $('pose-label').textContent = labelMap[pose] || pose;
+  $('pose-sub').textContent = `Pose ${index} of ${poseOrder.length} · ${POSE_HINT[pose]}`;
 
   const ghost = $('ghost');
   ghost.classList.add('hidden');
@@ -177,7 +180,8 @@ function showReview() {
   const label = $('review-pose-label');
 
   if (label) {
-    label.textContent = `Review ${pose === 'front' ? 'Front' : 'Profile'}`;
+    const labelMap = { front: 'Front', profile: 'Profile', back: 'Back' };
+    label.textContent = `Review ${labelMap[pose] || pose}`;
   }
 
   img.src = reviewSourceCanvas.toDataURL('image/jpeg', 0.94);
@@ -381,14 +385,48 @@ function fail(title, html) {
 function finish(photo) {
   terminal = true;
   stopCamera();
+  const countText = poseOrder.length === 3 ? 'All 3 poses captured' : 'Both poses captured';
   showMsg(`<div style="font-size:44px;margin-bottom:8px">✓</div>
-    <h2 style="text-transform:none;font-size:18px;color:var(--text);letter-spacing:0">Both poses captured</h2>
+    <h2 style="text-transform:none;font-size:18px;color:var(--text);letter-spacing:0">${countText}</h2>
     <p class="muted" style="font-size:13px">Saved to <code>${esc(photo.path)}</code></p>
     <div class="btn-row" style="margin-top:14px">
       <a class="btn" href="/progress">See progress</a>
       <a class="btn btn-primary" href="/">Done</a>
     </div>`);
 }
+
+function updateBackToggleUI() {
+  const btn = $('btn-toggle-back');
+  if (!btn) return;
+  btn.textContent = trackBackPhoto ? 'Back: ON' : 'Back: OFF';
+  btn.style.background = trackBackPhoto ? 'var(--primary, #10b981)' : 'rgba(0,0,0,0.5)';
+  btn.style.borderColor = trackBackPhoto ? 'transparent' : 'rgba(255,255,255,0.2)';
+}
+
+$('btn-toggle-back')?.addEventListener('click', async () => {
+  const pid = getActiveProfileId();
+  if (!pid) return;
+  const nextVal = !trackBackPhoto;
+  try {
+    await patchJSON(`/api/profiles/${pid}`, { track_back_photo: nextVal ? 1 : 0 });
+    trackBackPhoto = nextVal;
+    poseOrder = trackBackPhoto ? ['front', 'profile', 'back'] : ['front', 'profile'];
+    updateBackToggleUI();
+    toast(`Back photo tracking ${trackBackPhoto ? 'enabled' : 'disabled'}.`);
+    const status = await getJSON('/api/photos/status');
+    queue = status.remaining.length ? status.remaining : [...poseOrder];
+    if (!poseOrder.includes(pose)) {
+      await loadPose(queue[0]);
+    } else {
+      const index = poseOrder.indexOf(pose) + 1;
+      const labelMap = { front: 'Front', profile: 'Profile', back: 'Back' };
+      $('pose-label').textContent = labelMap[pose] || pose;
+      $('pose-sub').textContent = `Pose ${index} of ${poseOrder.length} · ${POSE_HINT[pose]}`;
+    }
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
 
 // Release the camera when the tab is backgrounded; some phones will not hand it
 // back to another app otherwise. Resume on return, unless we ended on a terminal
@@ -404,12 +442,16 @@ window.addEventListener('pagehide', stopCamera);
   if (btnTimer) btnTimer.textContent = `${timerSeconds}s`;
   try {
     const status = await getJSON('/api/photos/status');
-    queue = status.remaining.length ? status.remaining : [...POSE_ORDER];
+    trackBackPhoto = Boolean(status.track_back_photo);
+    poseOrder = status.expected_poses && status.expected_poses.length ? status.expected_poses : (trackBackPhoto ? ['front', 'profile', 'back'] : ['front', 'profile']);
+    updateBackToggleUI();
+    queue = status.remaining.length ? status.remaining : [...poseOrder];
     if (!status.remaining.length) {
-      toast('Both poses already shot today — new photos will replace them.');
+      toast(poseOrder.length === 3 ? 'All 3 poses already shot today — new photos will replace them.' : 'Both poses already shot today — new photos will replace them.');
     }
   } catch {
-    queue = [...POSE_ORDER];
+    queue = [...poseOrder];
+    updateBackToggleUI();
   }
   await loadPose(queue[0]);
   await startCamera();

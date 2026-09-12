@@ -132,14 +132,30 @@ const FIELDS = [
   ['grams', 'g'], ['calories', 'kcal'], ['protein_g', 'P'], ['carbs_g', 'C'], ['fat_g', 'F'],
 ];
 
+const CONF_LABELS = {
+  high: 'AI Conf: High',
+  medium: 'AI Conf: Med',
+  low: 'AI Conf: Low',
+};
+
+const CONF_DESCRIPTIONS = {
+  high: 'High AI Confidence: Food is clearly visible with a reliable portion estimate.',
+  medium: 'Medium AI Confidence: Standard recognizable dish, but portion size is approximate.',
+  low: 'Low AI Confidence: Ingredients are mixed, covered in sauce, or obscured. Please check and adjust grams.',
+};
+
 function renderItems() {
+  const isPhoto = draft.source === 'photo';
+  $('confidence-explainer')?.classList.toggle('hidden', !isPhoto);
+  $('items-source-badge')?.classList.toggle('hidden', !isPhoto);
+
   $('items').innerHTML = draft.items.map((item, idx) => `
     <div class="item" data-idx="${idx}">
       <div class="row1">
         <span class="food-icon-badge" data-badge-idx="${idx}" title="Component visual">${getFoodIcon(item.name)}</span>
         <input data-field="name" value="${esc(item.name)}" placeholder="Item name" aria-label="Item name">
-        ${draft.source === 'photo' && item.confidence
-          ? `<span class="chip ${esc(item.confidence)}" title="Model confidence">${esc(item.confidence)}</span>`
+        ${isPhoto && item.confidence
+          ? `<span class="chip ${esc(item.confidence)}" data-conf="${esc(item.confidence)}" role="button" tabindex="0" title="${CONF_DESCRIPTIONS[item.confidence] || 'AI Confidence'}. Tap for details.">${CONF_LABELS[item.confidence] || esc(item.confidence)}</span>`
           : ''}
         <button class="del" data-remove="${idx}" aria-label="Remove item">&times;</button>
       </div>
@@ -162,6 +178,19 @@ function renderItems() {
       draft.items.splice(Number(btn.dataset.remove), 1);
       if (!draft.items.length) draft.items.push(blankItem());
       renderItems();
+    });
+  });
+  $('items').querySelectorAll('.chip[data-conf]').forEach((chip) => {
+    const showInfo = () => {
+      const level = chip.dataset.conf;
+      toast(CONF_DESCRIPTIONS[level] || `AI Visual Certainty: ${level}`);
+    };
+    chip.addEventListener('click', showInfo);
+    chip.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        showInfo();
+      }
     });
   });
   updateTotals();

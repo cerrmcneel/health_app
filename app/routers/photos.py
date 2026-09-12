@@ -14,7 +14,7 @@ router = APIRouter(tags=["photos"])
 
 
 @router.get("/api/photos/ghost")
-def ghost(request: Request, pose: str = Query(..., pattern="^(front|profile)$")):
+def ghost(request: Request, pose: str = Query(..., pattern="^(front|profile|back)$")):
     """The most recent photo for a pose for the active profile, to overlay on the live viewfinder.
 
     Excludes today's own shot: re-taking a pose should align against the last
@@ -37,7 +37,7 @@ def ghost(request: Request, pose: str = Query(..., pattern="^(front|profile)$"))
 @router.get("/api/photos")
 def list_photos(
     request: Request,
-    pose: str | None = Query(default=None, pattern="^(front|profile)$"),
+    pose: str | None = Query(default=None, pattern="^(front|profile|back)$"),
     limit: int = 60,
 ):
     limit = max(1, min(limit, 400))
@@ -60,15 +60,20 @@ def status(request: Request):
     today = config.now().date().isoformat()
     with get_conn() as conn:
         profile_id = get_profile_id(request, conn)
+        prof = get_profile(conn, profile_id)
+        track_back = bool(prof.get("track_back_photo", 0))
+        expected_poses = ("front", "profile", "back") if track_back else ("front", "profile")
         rows = conn.execute(
             "SELECT pose FROM progress_photos WHERE profile_id = ? AND day = ?",
             (profile_id, today),
         ).fetchall()
-    done = {r["pose"] for r in rows}
+    done = {r["pose"] for r in rows if r["pose"] in expected_poses}
     return {
         "day": today,
         "done": sorted(done),
-        "remaining": [p for p in config.POSES if p not in done],
+        "remaining": [p for p in expected_poses if p not in done],
+        "expected_poses": list(expected_poses),
+        "track_back_photo": track_back,
     }
 
 
@@ -123,11 +128,22 @@ async def create_photo(
             )
             photo_id = cur.lastrowid
 
-        row = conn.execute(
-            "SELECT * FROM progress_photos WHERE id = ?", (photo_id,)
-        ).fetchone()
+        row = conn.execute("SELECT * FROM progress_photos WHERE id = ?", (photo_id,)).fetchone()
+        prof = get_profile(conn, profile_id)
+        track_back = bool(prof.get("track_back_photo", 0))
+        expected_poses = ("front", "profile", "back") if track_back else ("front", "profile")
+        done = {
+            r["pose"]
+            for r in conn.execute(
+                "SELECT pose FROM progress_photos WHERE profile_id = ? AND day = ?",
+                (profile_id, target_day),
+            )
+        }
 
-    nxt = next((p for p in config.POSES if p != pose), None)
+    # The first pose still missing for that day. "Any pose other than this one"
+    # was only correct with two poses; with three it sent you back to a pose you
+    # had already shot.
+    nxt = next((p for p in expected_poses if p not in done), None)
     return {"photo": _serialize(row), "next_pose": nxt}
 
 
@@ -200,7 +216,7 @@ def media(request: Request, path: str):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     norm_path = path.replace("\\", "/").lstrip("/")
-    if norm_path.startswith(("front/", "profile/")):
+    if norm_path.startswith(("front/", "profile/", "back/")):
         with get_conn() as conn:
             profile_id = get_profile_id(request, conn)
             row = conn.execute(

@@ -1,4 +1,4 @@
-"""FastAPI entrypoint for the self-hosted calorie and body progress tracker.
+"""FastAPI entrypoint for LocalPulse: self-hosted health and fitness tracker.
 
 Route style note: endpoints that only touch SQLite are declared `def`, not
 `async def`, so FastAPI runs them in a threadpool and the blocking sqlite3 driver
@@ -23,7 +23,7 @@ log = logging.getLogger("tracker")
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(app: FastAPI):
     config.ensure_dirs()
     init_db()
     purged = images.purge_pending()
@@ -34,7 +34,7 @@ async def lifespan(_: FastAPI):
     yield
 
 
-app = FastAPI(title="Fitness Tracker", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="LocalPulse", version="1.0.0", lifespan=lifespan)
 
 
 @app.middleware("http")

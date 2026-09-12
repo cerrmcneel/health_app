@@ -141,7 +141,7 @@ LOGIN_HTML = """<!DOCTYPE html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Login &middot; Fitness Tracker</title>
+  <title>Login &middot; LocalPulse</title>
   <style>
     :root {
       --bg: #0f172a;
@@ -216,7 +216,7 @@ LOGIN_HTML = """<!DOCTYPE html>
 </head>
 <body>
   <div class="login-card">
-    <h1>Fitness Tracker</h1>
+    <h1>LocalPulse</h1>
     <p>Enter your household password to access your health data</p>
     __ERROR__
     <form method="POST" action="/login">

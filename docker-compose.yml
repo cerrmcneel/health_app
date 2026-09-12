@@ -1,7 +1,7 @@
 services:
   tracker:
     build: .
-    container_name: fitness-tracker
+    container_name: localpulse
     restart: unless-stopped
     ports:
       - "${PORT:-8000}:8000"
@@ -20,7 +20,7 @@ services:
 
   proxy:
     image: nginx:alpine
-    container_name: fitness-tracker-proxy
+    container_name: localpulse-proxy
     profiles: ["ssl"]
     restart: unless-stopped
     ports:

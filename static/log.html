@@ -4,13 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f1115">
-<title>Log a meal &middot; Tracker</title>
+<title>Log a meal &middot; LocalPulse</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
 <link rel="icon" href="/static/icons/favicon-32.png" sizes="32x32">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Tracker">
+<meta name="apple-mobile-web-app-title" content="LocalPulse">
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="stylesheet" href="/static/css/app.css">
 </head>
@@ -92,7 +92,29 @@
     </div>
 
     <div class="card">
-      <h2>Items</h2>
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <h2>Items</h2>
+        <span id="items-source-badge" class="muted hidden" style="font-size:11px;background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:2px 8px">AI Analyzed</span>
+      </div>
+
+      <!-- AI Confidence Rating Explanation Banner -->
+      <div id="confidence-explainer" class="conf-info-box hidden" role="region" aria-label="AI Confidence Explanation">
+        <div style="display:flex;align-items:flex-start;gap:10px">
+          <span style="font-size:16px;line-height:1.2">ℹ️</span>
+          <div style="flex:1">
+            <strong style="color:var(--text);font-size:12.5px;display:block;margin-bottom:3px">What do the High / Medium / Low badges mean?</strong>
+            <p style="font-size:12px;color:var(--muted);margin:0 0 8px;line-height:1.4">
+              These indicate the AI's <strong>visual recognition certainty</strong> in identifying the ingredient and estimating portion size from your photo &mdash; <strong>not</strong> the healthiness or food quality.
+            </p>
+            <div class="conf-legend">
+              <span class="legend-item"><span class="chip high" style="font-size:9px;padding:1px 5px">High</span> Clear item &amp; distinct size</span>
+              <span class="legend-item"><span class="chip medium" style="font-size:9px;padding:1px 5px">Medium</span> Standard dish, approximate portion</span>
+              <span class="legend-item"><span class="chip low" style="font-size:9px;padding:1px 5px">Low</span> Mixed/hidden ingredients &mdash; check grams</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div id="items"></div>
       <button class="full" id="btn-add-item">+ Add item</button>
     </div>

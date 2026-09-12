@@ -27,7 +27,8 @@ CREATE TABLE IF NOT EXISTS profiles (
     preferred_duration_min INTEGER DEFAULT 25,
     preferred_level TEXT DEFAULT 'intermediate',
     workout_days_per_week INTEGER DEFAULT 3,
-    onboarded_at   TEXT
+    onboarded_at   TEXT,
+    track_back_photo INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS meals (
@@ -64,7 +65,7 @@ CREATE TABLE IF NOT EXISTS progress_photos (
     profile_id  INTEGER NOT NULL DEFAULT 1 REFERENCES profiles(id) ON DELETE CASCADE,
     day         TEXT    NOT NULL,
     taken_at    TEXT    NOT NULL,
-    pose        TEXT    NOT NULL CHECK (pose IN ('front','profile')),
+    pose        TEXT    NOT NULL CHECK (pose IN ('front','profile','back')),
     path        TEXT    NOT NULL,                -- relative to STORAGE_DIR
     width       INTEGER NOT NULL DEFAULT 0,
     height      INTEGER NOT NULL DEFAULT 0,
@@ -172,7 +173,7 @@ CREATE TABLE progress_photos__new (
     profile_id  INTEGER NOT NULL DEFAULT 1 REFERENCES profiles(id) ON DELETE CASCADE,
     day         TEXT    NOT NULL,
     taken_at    TEXT    NOT NULL,
-    pose        TEXT    NOT NULL CHECK (pose IN ('front','profile')),
+    pose        TEXT    NOT NULL CHECK (pose IN ('front','profile','back')),
     path        TEXT    NOT NULL,
     width       INTEGER NOT NULL DEFAULT 0,
     height      INTEGER NOT NULL DEFAULT 0,
@@ -211,10 +212,11 @@ def _migrate(conn: sqlite3.Connection) -> None:
     # A v1 progress_photos carries a table-level UNIQUE(day, pose). That would
     # stop a second profile ever storing its own photo for a day the first
     # profile already used. A table constraint cannot be dropped in place, so
-    # the table is rebuilt when the legacy shape is detected.
+    # the table is rebuilt when the legacy shape is detected or when 'back' pose is not yet allowed.
     photo_sql = " ".join(_table_sql(conn, "progress_photos").split()).lower()
     legacy_unique = "unique (day, pose)" in photo_sql or "unique(day, pose)" in photo_sql
-    if "profile_id" not in _columns(conn, "progress_photos") or legacy_unique:
+    needs_back_pose = "'back'" not in photo_sql
+    if "profile_id" not in _columns(conn, "progress_photos") or legacy_unique or needs_back_pose:
         has_pid = "profile_id" in _columns(conn, "progress_photos")
         pid_expr = "profile_id" if has_pid else "1"
         conn.execute("DROP TABLE IF EXISTS progress_photos__new")
@@ -263,6 +265,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
         "preferred_level": "TEXT DEFAULT 'intermediate'",
         "workout_days_per_week": "INTEGER DEFAULT 3",
         "onboarded_at": "TEXT",
+        "track_back_photo": "INTEGER NOT NULL DEFAULT 0",
     }
     for col_name, col_def in new_profile_cols.items():
         if col_name not in profile_cols:

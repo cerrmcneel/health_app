@@ -146,6 +146,40 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin
 }
 .chip.low { color: var(--danger); border-color: #4a2626; }
 .chip.high { color: var(--accent); border-color: var(--accent-dim); }
+.chip[role="button"] {
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.1s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.chip[role="button"]:hover {
+  border-color: var(--muted);
+  background: var(--surface-2);
+}
+.chip[role="button"]:active {
+  transform: scale(0.95);
+}
+
+/* --- AI Confidence Explanation Box --- */
+.conf-info-box {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 14px;
+}
+.conf-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.conf-legend .legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
 
 /* --- nav --- */
 nav.bottom {
@@ -322,6 +356,14 @@ body.cam { padding: 0; background: #000; overflow: hidden; }
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+.gallery.cols-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+@media (max-width: 420px) {
+  .gallery.cols-3 {
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  }
 }
 .gallery figure {
   margin: 0;

@@ -1,4 +1,4 @@
-# Contributing & Architectural Guidelines &middot; Fitness Tracker
+# Contributing & Architectural Guidelines &middot; LocalPulse
 
 This document preserves the hard-won lessons, architectural boundaries, and deployment landmines discovered during the development of this project. Read this before submitting PRs or modifying the codebase.
 

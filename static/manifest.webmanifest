@@ -1,7 +1,7 @@
 {
-  "name": "Fitness Tracker",
-  "short_name": "Tracker",
-  "description": "Private calorie and body progress tracker",
+  "name": "LocalPulse",
+  "short_name": "LocalPulse",
+  "description": "Self-hosted, private health and fitness tracker for homelabs",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

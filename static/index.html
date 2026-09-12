@@ -4,13 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f1115">
-<title>Today &middot; Tracker</title>
+<title>Today &middot; LocalPulse</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
 <link rel="icon" href="/static/icons/favicon-32.png" sizes="32x32">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Tracker">
+<meta name="apple-mobile-web-app-title" content="LocalPulse">
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="stylesheet" href="/static/css/app.css">
 </head>
@@ -24,6 +24,10 @@
           <span class="avatar-circle" id="profile-avatar">D</span>
           <span id="profile-name">Default</span>
           <span style="font-size:10px;opacity:.6">&#9662;</span>
+        </button>
+        <button id="settings-btn" class="profile-pill" title="Profile Settings" aria-label="Profile Settings" style="padding:0 9px;gap:4px;height:32px;display:inline-flex;align-items:center;cursor:pointer">
+          <span style="font-size:13px">⚙️</span>
+          <span style="font-size:12px;font-weight:500">Settings</span>
         </button>
       </div>
       <div class="date" id="day-iso"></div>
@@ -161,6 +165,7 @@
         <select id="up-photo-pose" style="width:100%;height:38px;background:var(--surface-2);color:var(--text);border:1px solid var(--line);border-radius:8px">
           <option value="front">Front</option>
           <option value="profile">Profile</option>
+          <option value="back">Back</option>
         </select>
       </div>
 
@@ -428,7 +433,7 @@
 <div id="edit-profile-modal" class="modal-overlay hidden">
   <div class="modal-card">
     <div class="modal-head">
-      <h3>Edit Profile</h3>
+      <h3>Profile Settings</h3>
       <button class="modal-close" data-close="edit-profile-modal">&times;</button>
     </div>
     <form id="edit-profile-form">
@@ -469,7 +474,21 @@
           <input type="number" id="edit-p-fat" min="0" max="500" required>
         </div>
       </div>
-      <button type="submit" class="btn btn-primary full" style="margin-top:8px">Save Profile</button>
+
+      <!-- Feature Preferences -->
+      <div class="field" style="margin-top:14px;padding:12px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px">
+        <label for="edit-p-track-back" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;cursor:pointer;margin:0">
+          <div>
+            <span style="font-weight:600;font-size:13.5px;color:var(--text);display:block">Track Back Progress Photo</span>
+            <span class="muted" style="font-size:11.5px;display:block;margin-top:3px;line-height:1.4">
+              Enables an optional 3rd photo (back pose) in the camera viewfinder and compares Front, Profile, and Back photos in Progress Studio.
+            </span>
+          </div>
+          <input type="checkbox" id="edit-p-track-back" style="width:18px;height:18px;margin-top:2px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
+        </label>
+      </div>
+
+      <button type="submit" class="btn btn-primary full" style="margin-top:14px">Save Settings</button>
     </form>
   </div>
 </div>

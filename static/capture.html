@@ -4,13 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<title>Capture &middot; Tracker</title>
+<title>Capture &middot; LocalPulse</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
 <link rel="icon" href="/static/icons/favicon-32.png" sizes="32x32">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Tracker">
+<meta name="apple-mobile-web-app-title" content="LocalPulse">
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="stylesheet" href="/static/css/app.css">
 </head>
@@ -31,7 +31,10 @@
       <div class="pose" id="pose-label">Front</div>
       <div class="sub" id="pose-sub">Pose 1 of 2</div>
     </div>
-    <a class="x" href="/" aria-label="Close">&times;</a>
+    <div style="display:flex;align-items:center;gap:10px">
+      <button type="button" class="icon-btn" id="btn-toggle-back" title="Toggle back photo tracking" aria-label="Toggle back photo" style="font-size:12px;width:auto;padding:0 10px;height:32px;border-radius:16px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.2);color:#fff">Back: OFF</button>
+      <a class="x" href="/" aria-label="Close">&times;</a>
+    </div>
   </div>
 
   <div class="cam-bottom">

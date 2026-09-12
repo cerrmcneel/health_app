@@ -26,11 +26,12 @@ DB_PATH = _resolve(os.getenv("DB_PATH", "./storage/fitness_tracker/tracker.db"))
 
 FRONT_DIR = STORAGE_DIR / "front"
 PROFILE_DIR = STORAGE_DIR / "profile"
+BACK_DIR = STORAGE_DIR / "back"
 MEALS_DIR = STORAGE_DIR / "meals"
 PENDING_DIR = STORAGE_DIR / "_pending"
 
-POSES = ("front", "profile")
-POSE_DIRS = {"front": FRONT_DIR, "profile": PROFILE_DIR}
+POSES = ("front", "profile", "back")
+POSE_DIRS = {"front": FRONT_DIR, "profile": PROFILE_DIR, "back": BACK_DIR}
 
 STATIC_DIR = BASE_DIR / "static"
 
@@ -68,5 +69,5 @@ def today_iso() -> str:
 
 
 def ensure_dirs() -> None:
-    for d in (STORAGE_DIR, FRONT_DIR, PROFILE_DIR, MEALS_DIR, PENDING_DIR, DB_PATH.parent):
+    for d in (STORAGE_DIR, FRONT_DIR, PROFILE_DIR, BACK_DIR, MEALS_DIR, PENDING_DIR, DB_PATH.parent):
         d.mkdir(parents=True, exist_ok=True)

@@ -1,6 +1,6 @@
-# Health App &middot; Self-Hosted, Subscription-Free Fitness Suite
+# LocalPulse &middot; Self-Hosted, Subscription-Free Health & Fitness Suite
 
-> **A private, 100% self-hosted health, nutrition, and workout suite for your homelab or local network.**  
+> **LocalPulse is a private, 100% self-hosted health, nutrition, and workout suite for your homelab or local network.**  
 > Zero monthly subscriptions. Zero cloud dependencies. Zero telemetry. No accounts or credit cards required.
 
 ---
@@ -14,7 +14,7 @@ Commercial fitness apps have shifted almost entirely to aggressive monthly paywa
 - **Fitbod, Caliverse & Freeletics** charge \$80–\$120/year for equipment-tailored workout routines.
 - **Progress photo apps** charge subscriptions to store and compare photos in their cloud.
 
-**This app replaces all of them.** It runs completely on your own hardware — a Raspberry Pi, mini-PC, TrueNAS, Unraid, Proxmox VM, or regular desktop PC. Your personal health data, weigh-ins, photos, and training logs never leave your home network.
+**LocalPulse replaces all of them.** It runs completely on your own hardware — a Raspberry Pi, mini-PC, TrueNAS, Unraid, Proxmox VM, or regular desktop PC. Your personal health data, weigh-ins, photos, and training logs never leave your home network.
 
 ---
 
@@ -38,7 +38,8 @@ Commercial fitness apps have shifted almost entirely to aggressive monthly paywa
 
 ### 📸 4. Ghost-Overlay Camera & Alignment Comparison Studio
 - **Ghost-Overlay Viewfinder**: Overlays your previous session's photo semi-transparently over the live camera so today's framing, distance, and pose match yesterday's.
-- **Interactive Alignment & Comparison**: Side-by-side Before/After split slider defaulting to earliest vs. latest photo.
+- **Multi-Pose Progression**: Standard Front and Profile capture with an **optional Back photo** that can be toggled on/off on the fly right from the camera or Progress Studio.
+- **Interactive Alignment & Comparison**: Side-by-side Before/After split slider defaulting to earliest vs. latest photo for each pose.
 - **Precision Nudge & Auto-Centering**: Drag-to-pan, 4-way 2px nudge buttons, zoom scaling (70%–140%), and an **Auto-Align** algorithm that calculates subject centroids to center photos automatically. Alignment offsets persist per photo.
 
 ### 📈 5. Body Weight Progress & Trend Smoothing (Replaces Happy Scale)
@@ -65,8 +66,8 @@ Commercial fitness apps have shifted almost entirely to aggressive monthly paywa
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/cerrmcneel/health_app.git
-   cd health_app
+   git clone https://github.com/cerrmcneel/localpulse.git
+   cd localpulse
    ```
 
 2. Start the application:
@@ -85,8 +86,8 @@ Commercial fitness apps have shifted almost entirely to aggressive monthly paywa
 Requirements: Python 3.11+
 
 ```bash
-git clone https://github.com/cerrmcneel/health_app.git
-cd health_app
+git clone https://github.com/cerrmcneel/localpulse.git
+cd localpulse
 python -m venv .venv
 
 # On Linux/macOS:
@@ -195,6 +196,7 @@ storage/fitness_tracker/
 ├── tracker.db          # SQLite database (WAL mode, foreign keys enabled)
 ├── front/              # Front progress photos (YYYY-MM-DD_front_*.jpg)
 ├── profile/            # Profile progress photos (YYYY-MM-DD_profile_*.jpg)
+├── back/               # Back progress photos (YYYY-MM-DD_back_*.jpg)
 ├── meals/              # Captured meal photos (YYYY/MM/*.jpg)
 └── _pending/           # Temporary staging for unconfirmed photo analyses
 ```
@@ -206,7 +208,7 @@ storage/fitness_tracker/
 > **LAN Data Exposure Notice**: When `APP_PASSWORD` is unset (the default for zero-friction single-user homelab setups), any device or user on your local network can reach `GET /api/backup/export` to download health records and body photos. If your instance is accessible to untrusted LAN devices, guest Wi-Fi, or roommates, configure `APP_PASSWORD` (see [Optional Shared-Secret Security Gate](#4-optional-shared-secret-security-gate-app_password)) or restrict remote access strictly via [Tailscale](#2-tailscale-recommended-default-zero-port-forwarding--free-trusted-ssl).
 - **Direct Filesystem Backup**:
   ```bash
-  tar -czvf health_app_backup_$(date +%F).tar.gz storage/
+  tar -czvf localpulse_backup_$(date +%F).tar.gz storage/
   ```
   To restore, unpack it back into place. That's it!
 
@@ -221,7 +223,7 @@ Detailed architectural documentation, concurrency invariants, SQLite WAL mode gu
 ## Project Structure
 
 ```
-Health_App/
+LocalPulse/
 ├── .github/workflows/
 │   └── docker-publish.yml # Automated multi-arch GHCR container build
 ├── app/

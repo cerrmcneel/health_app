@@ -82,8 +82,8 @@ function renderProfileList() {
           <button type="button" class="meal-btn onboard-profile-btn" data-onboard-pid="${p.id}" title="Run guided setup wizard" style="padding:4px 8px;font-size:11px">
             🎯 Setup
           </button>
-          <button type="button" class="meal-btn edit-profile-btn" data-edit-pid="${p.id}" title="Edit profile name & targets" style="padding:4px 8px;font-size:11px">
-            ✏️ Edit
+          <button type="button" class="meal-btn edit-profile-btn" data-edit-pid="${p.id}" title="Edit profile & preferences" style="padding:4px 8px;font-size:11px">
+            ⚙️ Settings
           </button>
           ${!p.is_default && currentProfilesList.length > 1 ? `<button type="button" class="del" data-del-profile="${p.id}" title="Delete profile">&times;</button>` : ''}
         </div>
@@ -153,6 +153,10 @@ function openEditProfileModal(pid) {
   $('edit-p-car').value = Math.round(p.carbs_target);
   $('edit-p-fat').value = Math.round(p.fat_target);
 
+  if ($('edit-p-track-back')) {
+    $('edit-p-track-back').checked = Boolean(p.track_back_photo);
+  }
+
   editAvatarColor = p.avatar_color || '#3b82f6';
   $('edit-p-colors')?.querySelectorAll('.color-opt').forEach((opt) => {
     const isSelected = opt.dataset.color.toLowerCase() === editAvatarColor.toLowerCase();
@@ -183,6 +187,7 @@ $('edit-profile-form')?.addEventListener('submit', async (e) => {
     protein_target: Number($('edit-p-pro').value) || 160,
     carbs_target: Number($('edit-p-car').value) || 220,
     fat_target: Number($('edit-p-fat').value) || 70,
+    track_back_photo: $('edit-p-track-back')?.checked ? 1 : 0,
   };
 
   try {
@@ -236,6 +241,7 @@ $('add-profile-form')?.addEventListener('submit', async (e) => {
 });
 
 $('profile-btn')?.addEventListener('click', () => openModal('profile-modal'));
+$('settings-btn')?.addEventListener('click', () => openEditProfileModal(currentProfile?.id));
 $('btn-start-onboarding')?.addEventListener('click', () => {
   if (currentProfile) openOnboardingModal(currentProfile.id);
 });
@@ -787,20 +793,37 @@ async function loadPhotos() {
     getJSON('/api/photos?limit=8'),
   ]);
 
-  $('photo-status').textContent = status.remaining.length === 0
-    ? 'Both poses captured today.'
-    : `Still to shoot today: ${status.remaining.join(' and ')}.`;
+  const expected = status.expected_poses || (status.track_back_photo ? ['front', 'profile', 'back'] : ['front', 'profile']);
+  const allCaptured = status.remaining.length === 0;
+  $('photo-status').textContent = allCaptured
+    ? (expected.length === 3 ? 'All 3 poses captured today.' : 'Both poses captured today.')
+    // "front, profile and back" -- joining everything with "and" read badly once
+    // a third pose existed.
+    : `Still to shoot today: ${status.remaining.length > 1
+      ? `${status.remaining.slice(0, -1).join(', ')} and ${status.remaining.at(-1)}`
+      : status.remaining[0]}.`;
 
   const latest = {};
   for (const p of photos.photos) {
     if (!latest[p.pose]) latest[p.pose] = p;
   }
 
-  const poses = ['front', 'profile'];
+  const poses = [...expected];
+  if (latest['back'] && !poses.includes('back')) {
+    poses.push('back');
+  }
+
   const hasAny = photos.photos.length > 0;
   if (!hasAny) {
     $('latest-photos').innerHTML = '<div class="empty" style="grid-column:1/-1">No progress photos yet.</div>';
+    $('latest-photos').classList.remove('cols-3');
     return;
+  }
+
+  if (poses.length >= 3) {
+    $('latest-photos').classList.add('cols-3');
+  } else {
+    $('latest-photos').classList.remove('cols-3');
   }
 
   $('latest-photos').innerHTML = poses.map((pose) => {

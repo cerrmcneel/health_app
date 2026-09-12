@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, field_validator
 
 Confidence = Literal["low", "medium", "high"]
 MealType = Literal["breakfast", "lunch", "dinner", "snack", "other"]
-Pose = Literal["front", "profile"]
+Pose = Literal["front", "profile", "back"]
 
 
 class TextAnalysisIn(BaseModel):
@@ -65,6 +65,7 @@ class ProfileIn(BaseModel):
     carbs_target: float = Field(default=220, ge=0, le=2000)
     fat_target: float = Field(default=70, ge=0, le=2000)
     avatar_color: str = Field(default="#3b82f6", max_length=20)
+    track_back_photo: int = Field(default=0, ge=0, le=1)
 
 
 class ProfileUpdate(BaseModel):
@@ -74,6 +75,7 @@ class ProfileUpdate(BaseModel):
     carbs_target: float | None = Field(default=None, ge=0, le=2000)
     fat_target: float | None = Field(default=None, ge=0, le=2000)
     avatar_color: str | None = Field(default=None, max_length=20)
+    track_back_photo: int | None = Field(default=None, ge=0, le=1)
 
 
 class TargetPreviewIn(BaseModel):
