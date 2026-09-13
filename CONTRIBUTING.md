@@ -75,3 +75,16 @@ This document preserves the hard-won lessons, architectural boundaries, and depl
    - When running on a shared household network or exposed across Tailscale, set `APP_PASSWORD=your_secret_password` in `.env`.
    - When set, all unauthenticated requests return 401 (or redirect to `/login`), and authentication is maintained via a constant-time HMAC-signed session cookie.
    - When unset, auth is completely disabled for zero-friction local development.
+
+6. **Production Deployment Target Invariant (Homelab Linux VM, Never Windows)**:
+   - **Production deployment MUST ALWAYS target the homelab Linux VM (`100.103.11.109`), NEVER the local Windows machine.**
+   - The local Windows workstation serves strictly as the development environment and GPU inference worker (providing Ollama via `extra_hosts: [gpu-worker:100.102.124.29]`).
+   - The user and household members access the live application from phones and mobile devices via **`https://100.103.11.109/`**.
+   - Standard deployment procedure:
+     ```bash
+     # 1. Sync updated code and assets to the homelab VM
+     scp -r app static requirements.txt eric-mcneel@100.103.11.109:~/fitness-tracker/
+
+     # 2. Set permissions, rebuild, and restart the tracker container
+     ssh eric-mcneel@100.103.11.109 "chmod -R a+rX ~/fitness-tracker/app ~/fitness-tracker/static && cd ~/fitness-tracker && docker compose build tracker && docker compose up -d tracker"
+     ```

@@ -62,6 +62,10 @@ Commercial fitness apps have shifted almost entirely to aggressive monthly paywa
 
 ## Quick Start (1 Command)
 
+> [!IMPORTANT]
+> **Homelab Production Deployment Notice**:
+> In this setup, production is deployed strictly to the dedicated **Linux Homelab VM** (`100.103.11.109` / `192.168.1.168`) running Docker Compose behind Nginx at **`https://100.103.11.109/`**. The local Windows workstation serves solely for local development and GPU worker inference (running Ollama), and is **never** used as the production deployment target.
+
 ### Option A: Docker Compose (Recommended for Homelabs, TrueNAS, Unraid, Proxmox)
 
 1. Clone the repository:
