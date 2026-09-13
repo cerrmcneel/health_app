@@ -79,28 +79,28 @@ async def unhandled(_request, exc: Exception):
 
 @app.get("/", include_in_schema=False)
 def index():
-    return FileResponse(config.STATIC_DIR / "index.html")
+    return FileResponse(config.STATIC_DIR / "index.html", headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/log", include_in_schema=False)
 def log_page():
-    return FileResponse(config.STATIC_DIR / "log.html")
+    return FileResponse(config.STATIC_DIR / "log.html", headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/capture", include_in_schema=False)
 def capture_page():
-    return FileResponse(config.STATIC_DIR / "capture.html")
+    return FileResponse(config.STATIC_DIR / "capture.html", headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/progress", include_in_schema=False)
 def progress_page():
-    return FileResponse(config.STATIC_DIR / "progress.html")
+    return FileResponse(config.STATIC_DIR / "progress.html", headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/workout", include_in_schema=False)
 @app.get("/workouts", include_in_schema=False)
 def workout_page():
-    return FileResponse(config.STATIC_DIR / "workout.html")
+    return FileResponse(config.STATIC_DIR / "workout.html", headers={"Cache-Control": "no-cache"})
 
 
 def _build_id() -> str:
