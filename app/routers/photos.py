@@ -225,6 +225,15 @@ def media(request: Request, path: str):
             ).fetchone()
             if not row or row["profile_id"] != profile_id:
                 raise HTTPException(status_code=404, detail="Image not found.")
+    elif norm_path.startswith("meals/"):
+        with get_conn() as conn:
+            profile_id = get_profile_id(request, conn)
+            row = conn.execute(
+                "SELECT profile_id FROM meals WHERE image_path = ?",
+                (norm_path,),
+            ).fetchone()
+            if not row or row["profile_id"] != profile_id:
+                raise HTTPException(status_code=404, detail="Image not found.")
 
     if not target.is_file():
         raise HTTPException(status_code=404, detail="Image not found.")

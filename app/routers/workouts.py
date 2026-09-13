@@ -11,7 +11,13 @@ from fastapi import APIRouter, HTTPException, Request
 from app import config
 from app.db import get_conn
 from app.deps import get_profile_id
-from app.models import EquipmentIn, WorkoutGenerateIn, WorkoutLogIn
+from app.models import (
+    EquipmentIn,
+    WeekPlanGenerateIn,
+    WeekPlanRerollDayIn,
+    WorkoutGenerateIn,
+    WorkoutLogIn,
+)
 
 log = logging.getLogger("tracker")
 
@@ -91,21 +97,72 @@ def remove_equipment(request: Request, item_key: str):
             raise HTTPException(status_code=404, detail=f"Equipment '{key}' not found in inventory.")
 
 
-@router.post("/generate")
-def generate_workout(request: Request, params: WorkoutGenerateIn):
+def generate_catalog_routine(
+    category: str = "full_body",
+    duration: int = 25,
+    level: str = "intermediate",
+    owned_keys: set[str] | None = None,
+) -> dict:
     """Generate a structured workout routine strictly tailored to available equipment."""
-    with get_conn() as conn:
-        profile_id = get_profile_id(request, conn)
-        owned_keys = _get_profile_equipment_keys(conn, profile_id)
+    if owned_keys is None:
+        owned_keys = {"none"}
 
     # Filter exercises where user possesses the required equipment
     eligible = [e for e in EXERCISE_CATALOG if e["equipment"] in owned_keys]
     if not eligible:
-        raise HTTPException(status_code=400, detail="No eligible exercises found for your equipment.")
+        eligible = [e for e in EXERCISE_CATALOG if e["equipment"] == "none"]
 
-    category = params.category
-    duration = params.duration_min
-    level = params.level
+    if category == "rest":
+        warmups_pool = [e for e in eligible if e["phase"] == "warmup"]
+        mobility_pool = [e for e in eligible if e["category"] in ("mobility", "core")]
+        cooldowns_pool = [e for e in eligible if e["phase"] == "cooldown"]
+        if not mobility_pool:
+            mobility_pool = cooldowns_pool or warmups_pool
+
+        selected_warmups = random.sample(warmups_pool, min(2, len(warmups_pool)))
+        selected_main = random.sample(mobility_pool, min(3, len(mobility_pool)))
+        selected_cooldowns = random.sample(cooldowns_pool, min(2, len(cooldowns_pool)))
+
+        used_keys = set()
+        for ex in selected_warmups + selected_main + selected_cooldowns:
+            if ex["equipment"] != "none":
+                used_keys.add(ex["equipment"])
+
+        return {
+            "title": f"Active Recovery & Mobility Flow ({duration} min)",
+            "category": "rest",
+            "duration_min": duration,
+            "rounds": 1,
+            "work_rest": "Continuous relaxed flow",
+            "level": level,
+            "intensity": "recovery",
+            "generator": "catalog",
+            "estimated_calories": round(duration * 2.5),
+            "equipment_used": list(used_keys),
+            "warmup": selected_warmups,
+            "main": selected_main,
+            "cooldown": selected_cooldowns,
+            "phases": [
+                {
+                    "phase_key": "warmup",
+                    "name": "Phase 1: Dynamic Warm-Up & Joint Prep",
+                    "desc": "Gentle rotations to lubricate joints and awaken muscles.",
+                    "exercises": selected_warmups,
+                },
+                {
+                    "phase_key": "main",
+                    "name": "Phase 2: Active Mobility & Flow",
+                    "desc": "Gentle range-of-motion work for recovery and tension release.",
+                    "exercises": selected_main,
+                },
+                {
+                    "phase_key": "cooldown",
+                    "name": "Phase 3: Deep Mat Stretches",
+                    "desc": "Relaxing stretches to down-regulate the nervous system.",
+                    "exercises": selected_cooldowns,
+                },
+            ],
+        }
 
     # Pool separation by phase
     warmups_pool = [e for e in eligible if e["phase"] == "warmup"]
@@ -116,9 +173,13 @@ def generate_workout(request: Request, params: WorkoutGenerateIn):
     if category == "hiit":
         cat_main = [e for e in main_pool if e["category"] in ("cardio", "core")]
     elif category == "upper":
-        cat_main = [e for e in main_pool if e["category"] in ("upper", "core")]
+        upper_items = [e for e in main_pool if e["category"] == "upper"]
+        core_items = [e for e in main_pool if e["category"] == "core"]
+        cat_main = upper_items if len(upper_items) >= 4 else (upper_items + core_items)
     elif category == "lower":
-        cat_main = [e for e in main_pool if e["category"] in ("lower", "core")]
+        lower_items = [e for e in main_pool if e["category"] == "lower"]
+        core_items = [e for e in main_pool if e["category"] == "core"]
+        cat_main = lower_items if len(lower_items) >= 4 else (lower_items + core_items)
     elif category == "core_mobility":
         cat_main = [e for e in main_pool if e["category"] in ("core", "mobility")]
     else:  # full_body
@@ -177,6 +238,7 @@ def generate_workout(request: Request, params: WorkoutGenerateIn):
         "upper": "Upper Body & Core Sculpt",
         "lower": "Lower Body Power & Leg Burn",
         "core_mobility": "Mat Core & Dynamic Mobility Flow",
+        "rest": "Active Recovery & Mobility Flow",
     }
     title = f"{titles_by_cat.get(category, 'Functional Workout')} ({duration} min)"
 
@@ -190,7 +252,7 @@ def generate_workout(request: Request, params: WorkoutGenerateIn):
     rate = 9.5 if category == "hiit" else 7.5
     est_calories = round(duration * rate)
 
-    routine = {
+    return {
         "title": title,
         "category": category,
         "duration_min": duration,
@@ -214,7 +276,7 @@ def generate_workout(request: Request, params: WorkoutGenerateIn):
             {
                 "phase_key": "main",
                 "name": f"Phase 2: Main Circuit ({rounds} Rounds)",
-                "desc": f"Perform consecutively with 1-2 min rest between full circuits.",
+                "desc": "Perform consecutively with 1-2 min rest between full circuits.",
                 "exercises": selected_main,
             },
             {
@@ -226,7 +288,24 @@ def generate_workout(request: Request, params: WorkoutGenerateIn):
         ],
     }
 
-    return routine
+
+@router.post("/generate")
+def generate_workout(request: Request, params: WorkoutGenerateIn):
+    """Generate a structured workout routine strictly tailored to available equipment."""
+    with get_conn() as conn:
+        profile_id = get_profile_id(request, conn)
+        owned_keys = _get_profile_equipment_keys(conn, profile_id)
+
+    eligible = [e for e in EXERCISE_CATALOG if e["equipment"] in owned_keys]
+    if not eligible:
+        raise HTTPException(status_code=400, detail="No eligible exercises found for your equipment.")
+
+    return generate_catalog_routine(
+        category=params.category,
+        duration=params.duration_min,
+        level=params.level,
+        owned_keys=owned_keys,
+    )
 
 
 @router.post("/ai-generate")
@@ -493,3 +572,306 @@ def delete_workout(request: Request, workout_id: int):
         if not row:
             raise HTTPException(status_code=404, detail="Workout not found.")
         conn.execute("DELETE FROM workouts WHERE id = ?", (workout_id,))
+
+
+# --- Weeklong Training Plan (Upper / Lower / Full Body Splits) ---
+
+FOCUS_LABELS: dict[str, str] = {
+    "upper": "Upper Body & Core",
+    "lower": "Lower Body & Legs",
+    "full_body": "Full Body Strength",
+    "core_mobility": "Core & Mobility",
+    "hiit": "HIIT & Cardio",
+    "rest": "Rest & Active Recovery",
+}
+
+FOCUS_MUSCLES: dict[str, list[str]] = {
+    "upper": ["Chest", "Back", "Shoulders", "Arms", "Core"],
+    "lower": ["Quads", "Hamstrings", "Glutes", "Calves"],
+    "full_body": ["Full Body", "Chest", "Legs", "Back", "Core"],
+    "core_mobility": ["Core", "Spine", "Hips", "Flexibility"],
+    "hiit": ["Cardio", "Agility", "Core", "Endurance"],
+    "rest": ["Recovery", "Mobility", "Joint Health"],
+}
+
+# Systematic sports-science splits mapping 7 days (Monday=0 to Sunday=6)
+# designed to avoid consecutive muscle clashes while ensuring balanced upper/lower targeting.
+WEEK_SPLIT_TEMPLATES: dict[int, list[str]] = {
+    1: ["rest", "rest", "full_body", "rest", "rest", "rest", "rest"],
+    2: ["rest", "upper", "rest", "rest", "lower", "rest", "rest"],
+    3: ["upper", "rest", "lower", "rest", "full_body", "rest", "rest"],
+    4: ["upper", "lower", "rest", "upper", "lower", "rest", "rest"],
+    5: ["upper", "lower", "core_mobility", "upper", "lower", "rest", "rest"],
+    6: ["upper", "lower", "core_mobility", "upper", "lower", "hiit", "rest"],
+    7: ["upper", "lower", "core_mobility", "upper", "lower", "hiit", "core_mobility"],
+}
+
+
+def _get_monday(d: date) -> date:
+    """Return the Monday of the ISO week containing date d."""
+    return d - timedelta(days=d.weekday())
+
+
+def _build_week_split(
+    days_per_week: int,
+    week_start: str,
+    level: str,
+    duration_min: int,
+    owned_keys: set[str],
+) -> list[dict]:
+    """Generate a structured 7-day schedule with targeted Upper/Lower/Full routines."""
+    monday = _get_monday(date.fromisoformat(week_start))
+    clamped_days = max(1, min(7, days_per_week))
+    split = WEEK_SPLIT_TEMPLATES.get(clamped_days, WEEK_SPLIT_TEMPLATES[3])
+
+    days: list[dict] = []
+    for day_idx in range(7):
+        day_date = monday + timedelta(days=day_idx)
+        focus = split[day_idx]
+        is_rest = (focus == "rest")
+        dur = 15 if is_rest else duration_min
+        routine = generate_catalog_routine(
+            category=focus,
+            duration=dur,
+            level=level,
+            owned_keys=owned_keys,
+        )
+        days.append({
+            "day_idx": day_idx,
+            "date": day_date.isoformat(),
+            "day_name": day_date.strftime("%A"),
+            "day_short": day_date.strftime("%a"),
+            "focus": focus,
+            "focus_label": FOCUS_LABELS.get(focus, "Workout"),
+            "is_rest": is_rest,
+            "title": routine["title"],
+            "duration_min": routine["duration_min"],
+            "level": level,
+            "target_muscles": FOCUS_MUSCLES.get(focus, []),
+            "routine": routine,
+        })
+    return days
+
+
+def _enrich_plan_with_logs(conn, profile_id: int, week_start: str, days: list[dict]) -> dict:
+    """Attach live logged workout completion status and today flag to week plan days."""
+    today_iso = config.now().date().isoformat()
+    monday = date.fromisoformat(week_start)
+    sunday = monday + timedelta(days=6)
+
+    rows = conn.execute(
+        """SELECT id, day, title, category, duration_min, logged_at
+           FROM workouts
+           WHERE profile_id = ? AND day >= ? AND day <= ? AND completed = 1
+           ORDER BY day ASC, id ASC""",
+        (profile_id, monday.isoformat(), sunday.isoformat()),
+    ).fetchall()
+
+    logged_by_day: dict[str, list[dict]] = {}
+    for r in rows:
+        d_str = r["day"]
+        if d_str not in logged_by_day:
+            logged_by_day[d_str] = []
+        logged_by_day[d_str].append(dict(r))
+
+    for d in days:
+        d_iso = d["date"]
+        logged = logged_by_day.get(d_iso, [])
+        d["completed"] = len(logged) > 0
+        d["logged_workouts"] = logged
+        d["is_today"] = (d_iso == today_iso)
+
+    completed_days = sum(1 for d in days if d.get("completed"))
+    total_workout_days = sum(1 for d in days if not d.get("is_rest"))
+
+    return {
+        "week_start": monday.isoformat(),
+        "week_end": sunday.isoformat(),
+        "days_per_week": total_workout_days,
+        "completed_days": completed_days,
+        "total_workout_days": total_workout_days,
+        "days": days,
+    }
+
+
+@router.get("/week-plan")
+def get_week_plan(request: Request, week_start: str | None = None):
+    """Get the 7-day structured training plan for the active profile (auto-creates if missing)."""
+    with get_conn() as conn:
+        profile_id = get_profile_id(request, conn)
+        today = config.now().date()
+        if week_start:
+            try:
+                mon = _get_monday(date.fromisoformat(week_start))
+            except ValueError:
+                mon = _get_monday(today)
+        else:
+            mon = _get_monday(today)
+        mon_str = mon.isoformat()
+
+        row = conn.execute(
+            "SELECT * FROM weekly_plans WHERE profile_id = ? AND week_start = ?",
+            (profile_id, mon_str),
+        ).fetchone()
+
+        if row:
+            days = json.loads(row["days_json"])
+            plan_id = row["id"]
+        else:
+            prof = conn.execute("SELECT * FROM profiles WHERE id = ?", (profile_id,)).fetchone()
+            days_per_week = prof["workout_days_per_week"] if prof and prof["workout_days_per_week"] else 3
+            level = prof["preferred_level"] if prof and prof["preferred_level"] else "intermediate"
+            duration = prof["preferred_duration_min"] if prof and prof["preferred_duration_min"] else 25
+            owned_keys = _get_profile_equipment_keys(conn, profile_id)
+
+            days = _build_week_split(days_per_week, mon_str, level, duration, owned_keys)
+            now_str = config.now().isoformat()
+            cur = conn.execute(
+                """INSERT INTO weekly_plans (profile_id, week_start, created_at, days_json)
+                   VALUES (?, ?, ?, ?)""",
+                (profile_id, mon_str, now_str, json.dumps(days)),
+            )
+            plan_id = cur.lastrowid
+
+        res = _enrich_plan_with_logs(conn, profile_id, mon_str, days)
+        res["id"] = plan_id
+        res["profile_id"] = profile_id
+        return res
+
+
+@router.post("/week-plan/generate")
+def generate_week_plan(request: Request, payload: WeekPlanGenerateIn):
+    """(Re)generate a full 7-day structured training plan with updated settings."""
+    with get_conn() as conn:
+        profile_id = get_profile_id(request, conn)
+        prof = conn.execute("SELECT * FROM profiles WHERE id = ?", (profile_id,)).fetchone()
+
+        today = config.now().date()
+        if payload.week_start:
+            try:
+                mon = _get_monday(date.fromisoformat(payload.week_start))
+            except ValueError:
+                mon = _get_monday(today)
+        else:
+            mon = _get_monday(today)
+        mon_str = mon.isoformat()
+
+        days_per_week = payload.days_per_week or (prof["workout_days_per_week"] if prof and prof["workout_days_per_week"] else 3)
+        level = payload.level or (prof["preferred_level"] if prof and prof["preferred_level"] else "intermediate")
+        duration = payload.duration_min or (prof["preferred_duration_min"] if prof and prof["preferred_duration_min"] else 25)
+
+        updates = []
+        params = []
+        if payload.days_per_week is not None:
+            updates.append("workout_days_per_week = ?")
+            params.append(payload.days_per_week)
+        if payload.level is not None:
+            updates.append("preferred_level = ?")
+            params.append(payload.level)
+        if payload.duration_min is not None:
+            updates.append("preferred_duration_min = ?")
+            params.append(payload.duration_min)
+        if updates:
+            params.append(profile_id)
+            conn.execute(f"UPDATE profiles SET {', '.join(updates)} WHERE id = ?", tuple(params))
+
+        owned_keys = _get_profile_equipment_keys(conn, profile_id)
+        days = _build_week_split(days_per_week, mon_str, level, duration, owned_keys)
+        now_str = config.now().isoformat()
+
+        conn.execute(
+            """INSERT INTO weekly_plans (profile_id, week_start, created_at, days_json)
+               VALUES (?, ?, ?, ?)
+               ON CONFLICT(profile_id, week_start) DO UPDATE SET
+                 days_json = excluded.days_json,
+                 created_at = excluded.created_at""",
+            (profile_id, mon_str, now_str, json.dumps(days)),
+        )
+
+        row = conn.execute(
+            "SELECT id FROM weekly_plans WHERE profile_id = ? AND week_start = ?",
+            (profile_id, mon_str),
+        ).fetchone()
+
+        res = _enrich_plan_with_logs(conn, profile_id, mon_str, days)
+        res["id"] = row["id"] if row else None
+        res["profile_id"] = profile_id
+        return res
+
+
+@router.post("/week-plan/reroll-day")
+def reroll_week_plan_day(request: Request, payload: WeekPlanRerollDayIn):
+    """Reroll a single day's routine within the active week plan."""
+    if payload.day_idx < 0 or payload.day_idx > 6:
+        raise HTTPException(status_code=400, detail="Invalid day_idx (must be 0 to 6).")
+
+    with get_conn() as conn:
+        profile_id = get_profile_id(request, conn)
+        today = config.now().date()
+        if payload.week_start:
+            try:
+                mon = _get_monday(date.fromisoformat(payload.week_start))
+            except ValueError:
+                mon = _get_monday(today)
+        else:
+            mon = _get_monday(today)
+        mon_str = mon.isoformat()
+
+        row = conn.execute(
+            "SELECT * FROM weekly_plans WHERE profile_id = ? AND week_start = ?",
+            (profile_id, mon_str),
+        ).fetchone()
+
+        prof = conn.execute("SELECT * FROM profiles WHERE id = ?", (profile_id,)).fetchone()
+        owned_keys = _get_profile_equipment_keys(conn, profile_id)
+
+        if row:
+            days = json.loads(row["days_json"])
+            plan_id = row["id"]
+        else:
+            days_per_week = prof["workout_days_per_week"] if prof and prof["workout_days_per_week"] else 3
+            level = prof["preferred_level"] if prof and prof["preferred_level"] else "intermediate"
+            duration = prof["preferred_duration_min"] if prof and prof["preferred_duration_min"] else 25
+            days = _build_week_split(days_per_week, mon_str, level, duration, owned_keys)
+            now_str = config.now().isoformat()
+            cur = conn.execute(
+                """INSERT INTO weekly_plans (profile_id, week_start, created_at, days_json)
+                   VALUES (?, ?, ?, ?)""",
+                (profile_id, mon_str, now_str, json.dumps(days)),
+            )
+            plan_id = cur.lastrowid
+
+        target_day = days[payload.day_idx]
+        if payload.focus:
+            target_day["focus"] = payload.focus
+            target_day["focus_label"] = FOCUS_LABELS.get(payload.focus, "Workout")
+            target_day["is_rest"] = (payload.focus == "rest")
+            target_day["target_muscles"] = FOCUS_MUSCLES.get(payload.focus, [])
+
+        focus = target_day["focus"]
+        is_rest = target_day.get("is_rest", focus == "rest")
+        dur = target_day.get("duration_min", 25)
+        if is_rest:
+            dur = 15
+        level = target_day.get("level", "intermediate")
+
+        new_routine = generate_catalog_routine(
+            category=focus,
+            duration=dur,
+            level=level,
+            owned_keys=owned_keys,
+        )
+        target_day["routine"] = new_routine
+        target_day["title"] = new_routine["title"]
+        target_day["duration_min"] = new_routine["duration_min"]
+
+        conn.execute(
+            "UPDATE weekly_plans SET days_json = ? WHERE id = ?",
+            (json.dumps(days), plan_id),
+        )
+
+        res = _enrich_plan_with_logs(conn, profile_id, mon_str, days)
+        res["id"] = plan_id
+        res["profile_id"] = profile_id
+        return res
+

@@ -1,6 +1,7 @@
 import {
   getJSON, postJSON, postForm, putJSON, patchJSON, del, fmt, pct, prettyDate, shiftDay, todayISO,
   toast, esc, checkHealth, getActiveProfileId, setActiveProfileId, getFoodIcon,
+  getProfileToken, setProfileToken, clearProfileToken,
 } from './api.js';
 
 let day = todayISO();
@@ -27,6 +28,104 @@ document.querySelectorAll('.modal-overlay').forEach((overlay) => {
   });
 });
 
+// --- Profile PIN Handling ---
+let targetPinProfile = null;
+let currentPinDigits = '';
+
+function updatePinDisplay() {
+  const dots = $('pin-dots')?.querySelectorAll('.pin-dot');
+  if (!dots) return;
+  dots.forEach((dot, idx) => {
+    dot.classList.toggle('filled', idx < currentPinDigits.length);
+  });
+}
+
+function promptProfilePin(profile) {
+  targetPinProfile = profile;
+  currentPinDigits = '';
+  updatePinDisplay();
+  const errEl = $('pin-error');
+  if (errEl) {
+    errEl.textContent = '';
+    errEl.classList.add('hidden');
+  }
+  const nameEl = $('pin-profile-name');
+  if (nameEl) nameEl.textContent = profile.name;
+  const avatarEl = $('pin-profile-avatar');
+  if (avatarEl) {
+    avatarEl.textContent = profile.name.charAt(0).toUpperCase();
+    avatarEl.style.background = profile.avatar_color || '#3b82f6';
+  }
+  const pinInput = $('pin-input');
+  if (pinInput) pinInput.value = '';
+  openModal('pin-modal');
+  pinInput?.focus();
+}
+
+async function handlePinSubmit(pin) {
+  if (!targetPinProfile || pin.length !== 4) return;
+  const errEl = $('pin-error');
+  try {
+    const res = await postJSON(`/api/profiles/${targetPinProfile.id}/verify-pin`, { pin });
+    if (res.token) {
+      setProfileToken(targetPinProfile.id, res.token);
+    }
+    // If switching away from another locked profile, clear its token
+    if (currentProfile && currentProfile.has_pin && String(currentProfile.id) !== String(targetPinProfile.id)) {
+      clearProfileToken(currentProfile.id);
+      try { await postJSON(`/api/profiles/${currentProfile.id}/lock`); } catch {}
+    }
+    setActiveProfileId(targetPinProfile.id);
+    closeModal('pin-modal');
+    toast(`Unlocked ${targetPinProfile.name}`);
+    await loadProfiles();
+    await loadDay();
+    await Promise.all([loadChart(), loadPhotos(), loadWeight()]);
+  } catch (err) {
+    const dotsRow = $('pin-dots');
+    dotsRow?.classList.add('shake');
+    setTimeout(() => dotsRow?.classList.remove('shake'), 400);
+    if (errEl) {
+      errEl.textContent = err.message || 'Incorrect PIN';
+      errEl.classList.remove('hidden');
+    }
+    currentPinDigits = '';
+    updatePinDisplay();
+    const pinInput = $('pin-input');
+    if (pinInput) pinInput.value = '';
+  }
+}
+
+$('pin-keypad')?.querySelectorAll('.pin-key').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const key = btn.dataset.key;
+    if (key === 'clear') {
+      currentPinDigits = '';
+      updatePinDisplay();
+    } else if (key === 'back') {
+      currentPinDigits = currentPinDigits.slice(0, -1);
+      updatePinDisplay();
+    } else if (/^\d$/.test(key)) {
+      if (currentPinDigits.length < 4) {
+        currentPinDigits += key;
+        updatePinDisplay();
+        if (currentPinDigits.length === 4) {
+          handlePinSubmit(currentPinDigits);
+        }
+      }
+    }
+  });
+});
+
+$('pin-input')?.addEventListener('input', (e) => {
+  const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+  currentPinDigits = val;
+  updatePinDisplay();
+  if (currentPinDigits.length === 4) {
+    handlePinSubmit(currentPinDigits);
+  }
+});
+
 // --- Profile Handling ---
 async function loadProfiles() {
   try {
@@ -43,6 +142,12 @@ async function loadProfiles() {
       $('profile-avatar').textContent = currentProfile.name.charAt(0).toUpperCase();
       $('profile-avatar').style.background = currentProfile.avatar_color || '#3b82f6';
 
+      // Toggle lock button in top header
+      const lockBtn = $('lock-btn');
+      if (lockBtn) {
+        lockBtn.classList.toggle('hidden', !currentProfile.has_pin);
+      }
+
       const backupLink = $('download-backup-btn');
       if (backupLink) {
         backupLink.href = `/api/backup/export?profile_id=${encodeURIComponent(currentProfile.id)}`;
@@ -55,6 +160,11 @@ async function loadProfiles() {
         } else {
           promptEl.classList.add('hidden');
         }
+      }
+
+      // If active profile is PIN protected and unauthenticated, prompt PIN
+      if (currentProfile.has_pin && !getProfileToken(currentProfile.id)) {
+        promptProfilePin(currentProfile);
       }
     }
 
@@ -75,7 +185,7 @@ function renderProfileList() {
           ${esc(p.name.charAt(0).toUpperCase())}
         </span>
         <div class="p-info">
-          <b>${esc(p.name)} ${p.is_default ? '<small style="color:var(--muted)">(Default)</small>' : ''} ${isActive ? '<small style="color:var(--accent)">&bull; Active</small>' : ''}</b>
+          <b>${esc(p.name)} ${p.is_default ? '<small style="color:var(--muted)">(Default)</small>' : ''} ${p.has_pin ? '<span class="lock-badge" title="PIN Protected">🔒</span>' : ''} ${isActive ? '<small style="color:var(--accent)">&bull; Active</small>' : ''}</b>
           <small>${fmt(p.calorie_target)} kcal &middot; P:${fmt(p.protein_target)}g C:${fmt(p.carbs_target)}g F:${fmt(p.fat_target)}g</small>
         </div>
         <div style="display:flex;gap:6px;align-items:center">
@@ -95,6 +205,22 @@ function renderProfileList() {
     el.addEventListener('click', async (e) => {
       if (e.target.closest('.edit-profile-btn') || e.target.closest('.onboard-profile-btn') || e.target.closest('[data-del-profile]')) return;
       const pid = el.dataset.pid;
+      const targetProf = currentProfilesList.find(p => String(p.id) === String(pid));
+
+      if (targetProf && targetProf.has_pin) {
+        const token = getProfileToken(targetProf.id);
+        if (!token) {
+          closeModal('profile-modal');
+          promptProfilePin(targetProf);
+          return;
+        }
+      }
+
+      if (currentProfile && currentProfile.has_pin && String(currentProfile.id) !== String(pid)) {
+        clearProfileToken(currentProfile.id);
+        try { await postJSON(`/api/profiles/${currentProfile.id}/lock`); } catch {}
+      }
+
       setActiveProfileId(pid);
       closeModal('profile-modal');
       await loadProfiles();
@@ -157,6 +283,20 @@ function openEditProfileModal(pid) {
     $('edit-p-track-back').checked = Boolean(p.track_back_photo);
   }
 
+  // PIN security section
+  const hasPin = Boolean(p.has_pin);
+  const statusEl = $('edit-p-pin-status');
+  if (statusEl) {
+    statusEl.textContent = hasPin ? '🔒 PIN Protected' : 'Unlocked';
+    statusEl.style.color = hasPin ? 'var(--accent)' : 'var(--muted)';
+  }
+  $('edit-p-current-pin-group')?.classList.toggle('hidden', !hasPin);
+  $('edit-p-remove-pin-group')?.classList.toggle('hidden', !hasPin);
+  const newPinLabel = $('edit-p-new-pin-label');
+  if (newPinLabel) newPinLabel.textContent = hasPin ? 'Change 4-Digit PIN' : 'Set New 4-Digit PIN';
+  if ($('edit-p-current-pin')) $('edit-p-current-pin').value = '';
+  if ($('edit-p-new-pin')) $('edit-p-new-pin').value = '';
+
   editAvatarColor = p.avatar_color || '#3b82f6';
   $('edit-p-colors')?.querySelectorAll('.color-opt').forEach((opt) => {
     const isSelected = opt.dataset.color.toLowerCase() === editAvatarColor.toLowerCase();
@@ -180,6 +320,9 @@ $('edit-profile-form')?.addEventListener('submit', async (e) => {
   const name = $('edit-p-name').value.trim();
   if (!name) return;
 
+  const newPin = $('edit-p-new-pin')?.value.trim();
+  const currentPin = $('edit-p-current-pin')?.value.trim();
+
   const payload = {
     name,
     avatar_color: editAvatarColor,
@@ -190,13 +333,49 @@ $('edit-profile-form')?.addEventListener('submit', async (e) => {
     track_back_photo: $('edit-p-track-back')?.checked ? 1 : 0,
   };
 
+  if (newPin) {
+    if (newPin.length !== 4 || !/^\d{4}$/.test(newPin)) {
+      toast('PIN must be exactly 4 digits', true);
+      return;
+    }
+    payload.pin = newPin;
+  }
+  if (currentPin) {
+    payload.current_pin = currentPin;
+  }
+
   try {
     const updated = await patchJSON(`/api/profiles/${pid}`, payload);
+    // If PIN was updated/set, verify immediately to keep session active
+    if (payload.pin) {
+      const v = await postJSON(`/api/profiles/${pid}/verify-pin`, { pin: payload.pin });
+      if (v.token) setProfileToken(pid, v.token);
+    }
     closeModal('edit-profile-modal');
     toast(`Profile updated: "${updated.name}"`);
     await loadProfiles();
     await loadDay();
     await Promise.all([loadChart(), loadPhotos(), loadWeight()]);
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+
+$('btn-remove-pin')?.addEventListener('click', async () => {
+  const pid = $('edit-p-id')?.value;
+  const currentPin = $('edit-p-current-pin')?.value.trim();
+  if (!currentPin) {
+    toast('Please enter your current 4-digit PIN above to remove protection', true);
+    $('edit-p-current-pin')?.focus();
+    return;
+  }
+  if (!confirm('Remove PIN protection from this profile?')) return;
+  try {
+    await patchJSON(`/api/profiles/${pid}`, { remove_pin: true, current_pin: currentPin });
+    clearProfileToken(pid);
+    toast('PIN protection removed');
+    closeModal('edit-profile-modal');
+    await loadProfiles();
   } catch (err) {
     toast(err.message, true);
   }
@@ -216,17 +395,30 @@ $('add-profile-form')?.addEventListener('submit', async (e) => {
   e.preventDefault();
   const name = $('new-p-name').value.trim();
   const cals = Number($('new-p-cal').value) || 2200;
+  const pin = $('new-p-pin')?.value.trim();
   if (!name) return;
 
+  if (pin && (pin.length !== 4 || !/^\d{4}$/.test(pin))) {
+    toast('PIN must be exactly 4 digits', true);
+    return;
+  }
+
   try {
-    const created = await postJSON('/api/profiles', {
+    const payload = {
       name,
       avatar_color: selectedAvatarColor,
       calorie_target: cals,
       protein_target: Math.round(cals * 0.3 / 4),
       carbs_target: Math.round(cals * 0.45 / 4),
       fat_target: Math.round(cals * 0.25 / 9),
-    });
+    };
+    if (pin) payload.pin = pin;
+
+    const created = await postJSON('/api/profiles', payload);
+    if (pin) {
+      const v = await postJSON(`/api/profiles/${created.id}/verify-pin`, { pin });
+      if (v.token) setProfileToken(created.id, v.token);
+    }
     setActiveProfileId(created.id);
     $('add-profile-form').reset();
     closeModal('profile-modal');
@@ -242,6 +434,31 @@ $('add-profile-form')?.addEventListener('submit', async (e) => {
 
 $('profile-btn')?.addEventListener('click', () => openModal('profile-modal'));
 $('settings-btn')?.addEventListener('click', () => openEditProfileModal(currentProfile?.id));
+$('lock-btn')?.addEventListener('click', async () => {
+  if (currentProfile) {
+    clearProfileToken(currentProfile.id);
+    try { await postJSON(`/api/profiles/${currentProfile.id}/lock`); } catch {}
+    toast(`Locked "${currentProfile.name}"`);
+    const defaultProf = currentProfilesList.find(p => p.is_default && String(p.id) !== String(currentProfile.id));
+    if (defaultProf) {
+      setActiveProfileId(defaultProf.id);
+      await loadProfiles();
+      await loadDay();
+      await Promise.all([loadChart(), loadPhotos(), loadWeight()]);
+    } else {
+      await loadProfiles();
+    }
+  }
+});
+
+window.addEventListener('profile-locked', (e) => {
+  const lockedPid = e.detail?.profileId;
+  const prof = currentProfilesList.find(p => String(p.id) === String(lockedPid)) || currentProfile;
+  if (prof) {
+    promptProfilePin(prof);
+  }
+});
+
 $('btn-start-onboarding')?.addEventListener('click', () => {
   if (currentProfile) openOnboardingModal(currentProfile.id);
 });
@@ -578,40 +795,99 @@ async function loadDay() {
   $('day-iso').textContent = day;
   $('next').disabled = day >= todayISO();
 
-  const [stats, meals, workoutsData] = await Promise.all([
+  const [stats, meals, workoutsData, weekPlan] = await Promise.all([
     getJSON(`/api/stats/daily?day=${day}`),
     getJSON(`/api/meals?day=${day}`),
     getJSON(`/api/workouts?day=${day}`).catch(() => ({ workouts: [] })),
+    getJSON('/api/workouts/week-plan').catch(() => null),
   ]);
 
   renderTotals(stats);
   renderMeals(meals.meals);
-  renderTodayWorkout(workoutsData?.workouts || []);
+  renderTodayWorkout(workoutsData?.workouts || [], weekPlan);
   fillTargetsModal(stats.targets);
 }
 
-function renderTodayWorkout(workouts) {
+function renderTodayWorkout(workouts, weekPlan) {
   const preview = $('today-workout-preview');
+  const mini = $('dash-week-mini');
+  const btn = $('btn-dash-workout');
+
+  // Render 7-day mini tracker bar if week plan is available
+  if (mini && weekPlan && Array.isArray(weekPlan.days)) {
+    mini.innerHTML = weekPlan.days.map((d) => {
+      const isToday = d.is_today;
+      const isDone = d.completed;
+      const isRest = d.is_rest;
+      const title = `${d.day_name}: ${d.title}${isDone ? ' (Completed ✓)' : ''}`;
+      return `
+        <div class="mini-day-pill ${isToday ? 'is-today' : ''} ${isDone ? 'is-done' : ''} ${isRest ? 'is-rest' : ''}" title="${esc(title)}">
+          <div class="mini-day-label">${esc(d.day_short.charAt(0))}</div>
+          <div class="mini-day-dot"></div>
+        </div>
+      `;
+    }).join('');
+  }
+
   if (!preview) return;
-  if (!workouts.length) {
-    preview.innerHTML = '<div class="muted" style="font-size:13px">No workout completed yet today.</div>';
+
+  // 1. If workout completed today:
+  if (workouts.length) {
+    const w = workouts[0];
+    const count = workouts.length;
+    preview.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px">
+        <div>
+          <div style="font-size:14px;font-weight:600;color:var(--text)">${esc(w.title)}</div>
+          <div class="muted" style="font-size:12px;margin-top:2px">
+            <span>⏱️ ${w.duration_min} min</span> &bull;
+            <span>⚡ ${esc(w.intensity)}</span>
+            ${count > 1 ? `<span> &bull; +${count - 1} more</span>` : ''}
+          </div>
+        </div>
+        <span style="color:var(--accent);font-size:18px;font-weight:bold" title="Completed">✓</span>
+      </div>
+    `;
+    if (btn) btn.textContent = 'Open Training Studio';
     return;
   }
-  const w = workouts[0];
-  const count = workouts.length;
-  preview.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px">
-      <div>
-        <div style="font-size:14px;font-weight:600;color:var(--text)">${esc(w.title)}</div>
-        <div class="muted" style="font-size:12px;margin-top:2px">
-          <span>⏱️ ${w.duration_min} min</span> &bull;
-          <span>⚡ ${esc(w.intensity)}</span>
-          ${count > 1 ? `<span> &bull; +${count - 1} more</span>` : ''}
+
+  // 2. If week plan has today's planned session:
+  const todayDay = weekPlan?.days?.find((d) => d.is_today);
+  if (todayDay) {
+    if (todayDay.is_rest) {
+      preview.innerHTML = `
+        <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px">
+          <div style="font-size:13.5px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:6px">
+            <span>🧘</span> Rest &amp; Active Recovery Day
+          </div>
+          <div class="muted" style="font-size:12px;margin-top:2px">
+            Recovery routine available &bull; 15 min gentle mobility
+          </div>
         </div>
-      </div>
-      <span style="color:var(--accent);font-size:18px;font-weight:bold" title="Completed">✓</span>
-    </div>
-  `;
+      `;
+      if (btn) btn.textContent = 'View Recovery Routine';
+    } else {
+      const muscles = todayDay.target_muscles?.length ? todayDay.target_muscles.slice(0, 3).join(', ') : '';
+      preview.innerHTML = `
+        <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px">
+          <div style="font-size:13.5px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:6px">
+            <span style="color:var(--accent)">🎯</span> Target: ${esc(todayDay.focus_label || todayDay.title)}
+          </div>
+          <div class="muted" style="font-size:12px;margin-top:2px">
+            <span>⏱️ ${todayDay.duration_min} min</span>
+            ${muscles ? ` &bull; <span>${esc(muscles)}</span>` : ''}
+          </div>
+        </div>
+      `;
+      if (btn) btn.textContent = `Start ${todayDay.focus_label || 'Workout'}`;
+    }
+    return;
+  }
+
+  // 3. Fallback
+  preview.innerHTML = '<div class="muted" style="font-size:13px">No workout completed yet today.</div>';
+  if (btn) btn.textContent = 'Start Workout';
 }
 
 function renderTotals({ totals, targets, remaining }) {

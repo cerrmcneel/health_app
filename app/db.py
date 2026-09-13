@@ -28,7 +28,9 @@ CREATE TABLE IF NOT EXISTS profiles (
     preferred_level TEXT DEFAULT 'intermediate',
     workout_days_per_week INTEGER DEFAULT 3,
     onboarded_at   TEXT,
-    track_back_photo INTEGER NOT NULL DEFAULT 0
+    track_back_photo INTEGER NOT NULL DEFAULT 0,
+    pin_hash       TEXT,
+    pin_salt       TEXT
 );
 
 CREATE TABLE IF NOT EXISTS meals (
@@ -119,6 +121,16 @@ CREATE TABLE IF NOT EXISTS workouts (
     notes          TEXT    NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_workouts_profile_day ON workouts(profile_id, day DESC);
+
+CREATE TABLE IF NOT EXISTS weekly_plans (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    profile_id  INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    week_start  TEXT    NOT NULL,
+    created_at  TEXT    NOT NULL,
+    days_json   TEXT    NOT NULL,
+    UNIQUE(profile_id, week_start)
+);
+CREATE INDEX IF NOT EXISTS idx_weekly_plans_prof_week ON weekly_plans(profile_id, week_start);
 """
 
 AFTER_MIGRATE_SCHEMA = """
@@ -126,6 +138,7 @@ CREATE INDEX IF NOT EXISTS idx_meals_profile_day ON meals(profile_id, day);
 CREATE INDEX IF NOT EXISTS idx_photos_profile_pose_day ON progress_photos(profile_id, pose, day DESC);
 CREATE INDEX IF NOT EXISTS idx_equip_profile ON profile_equipment(profile_id);
 CREATE INDEX IF NOT EXISTS idx_workouts_profile_day ON workouts(profile_id, day DESC);
+CREATE INDEX IF NOT EXISTS idx_weekly_plans_prof_week ON weekly_plans(profile_id, week_start);
 
 -- Daily totals are derived, never stored, so edits to a meal can never drift
 -- out of sync with the day's headline number.
@@ -266,6 +279,8 @@ def _migrate(conn: sqlite3.Connection) -> None:
         "workout_days_per_week": "INTEGER DEFAULT 3",
         "onboarded_at": "TEXT",
         "track_back_photo": "INTEGER NOT NULL DEFAULT 0",
+        "pin_hash": "TEXT",
+        "pin_salt": "TEXT",
     }
     for col_name, col_def in new_profile_cols.items():
         if col_name not in profile_cols:
@@ -286,6 +301,19 @@ def _migrate(conn: sqlite3.Connection) -> None:
                 (p["id"], now_str, p["id"], now_str),
             )
         conn.execute("UPDATE profiles SET seeded_equipment = 1 WHERE id = ?", (p["id"],))
+
+    # Ensure weekly_plans table exists on existing databases
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS weekly_plans (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            profile_id  INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+            week_start  TEXT    NOT NULL,
+            created_at  TEXT    NOT NULL,
+            days_json   TEXT    NOT NULL,
+            UNIQUE(profile_id, week_start)
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_weekly_plans_prof_week ON weekly_plans(profile_id, week_start)")
 
 
 

@@ -22,11 +22,35 @@ try {
   }
 } catch { /* ignore in non-browser environments */ }
 
+export function getProfileToken(pid) {
+  const id = pid || getActiveProfileId();
+  if (!id) return null;
+  return sessionStorage.getItem(`profile_token_${id}`) || null;
+}
+
+export function setProfileToken(pid, token) {
+  if (pid && token) {
+    sessionStorage.setItem(`profile_token_${pid}`, token);
+  } else if (pid) {
+    sessionStorage.removeItem(`profile_token_${pid}`);
+  }
+}
+
+export function clearProfileToken(pid) {
+  if (pid) {
+    sessionStorage.removeItem(`profile_token_${pid}`);
+  }
+}
+
 export async function api(path, options = {}) {
   const headers = { ...(options.headers || {}) };
   const pid = getActiveProfileId();
   if (pid && !headers['X-Profile-ID']) {
     headers['X-Profile-ID'] = String(pid);
+  }
+  const token = getProfileToken(pid);
+  if (token && !headers['X-Profile-Token']) {
+    headers['X-Profile-Token'] = token;
   }
 
   const res = await fetch(path, { ...options, headers });
@@ -34,6 +58,9 @@ export async function api(path, options = {}) {
   let body = null;
   try { body = await res.json(); } catch { /* empty or non-JSON body */ }
   if (!res.ok) {
+    if (res.status === 403 && typeof body?.detail === 'string' && body.detail.includes('Profile is locked')) {
+      window.dispatchEvent(new CustomEvent('profile-locked', { detail: { profileId: pid } }));
+    }
     // FastAPI puts validation errors in `detail` as an array of objects.
     let detail = body?.detail ?? `Request failed (${res.status})`;
     if (Array.isArray(detail)) detail = detail.map(d => d.msg || String(d)).join('; ');

@@ -155,6 +155,7 @@ def export_backup(request: Request, scope: str = Query(default="profile")):
                     (profile_id,),
                 )
                 workouts = _copy_table(conn, mem_db, "workouts", "SELECT * FROM workouts WHERE profile_id = ?", (profile_id,))
+                weekly_plans = _copy_table(conn, mem_db, "weekly_plans", "SELECT * FROM weekly_plans WHERE profile_id = ?", (profile_id,))
 
                 mem_db.commit()
                 db_bytes = mem_db.serialize()

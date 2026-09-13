@@ -15,6 +15,8 @@ const $ = (id) => document.getElementById(id);
 let currentOwnedKeys = new Set();
 let currentEquipmentList = [];
 let activeRoutineData = null;
+let currentWeekPlan = null;
+let selectedDayIdx = null;
 let timerInterval = null;
 let timerSecondsRemaining = 45;
 let timerTotalSeconds = 45;
@@ -42,6 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
   markNav();
   if ($('today')) $('today').textContent = prettyDate(todayISO());
 
+  initWeekPlan();
   initEquipment();
   initPills();
   initGenerator();
@@ -291,6 +294,7 @@ function initGenerator() {
       $('routine-card').classList.add('hidden');
       activeRoutineData = null;
       await loadHistory();
+      await loadWeekPlan();
     } catch (err) {
       toast(err.message, true);
     } finally {
@@ -593,3 +597,218 @@ async function loadHistory() {
     container.innerHTML = `<div class="banner err">Failed to load history: ${esc(err.message)}</div>`;
   }
 }
+
+// --- Weeklong Training Plan (7-Day Schedule) ---
+
+function getFocusBadgeClass(focus) {
+  switch (focus) {
+    case 'upper': return 'badge-upper';
+    case 'lower': return 'badge-lower';
+    case 'full_body': return 'badge-full';
+    case 'core_mobility': return 'badge-core';
+    case 'hiit': return 'badge-hiit';
+    default: return 'badge-rest';
+  }
+}
+
+function getFocusIcon(focus) {
+  switch (focus) {
+    case 'upper': return '💪';
+    case 'lower': return '🦵';
+    case 'full_body': return '⚡';
+    case 'core_mobility': return '🧘';
+    case 'hiit': return '🔥';
+    default: return '☕';
+  }
+}
+
+async function initWeekPlan() {
+  $('btn-regen-week')?.addEventListener('click', async () => {
+    if (!confirm('Regenerate the entire 7-day schedule? Single-day customizations will be reset.')) return;
+    try {
+      const plan = await postJSON('/api/workouts/week-plan/generate', {});
+      toast('Regenerated weekly schedule!');
+      renderWeekPlan(plan);
+    } catch (err) {
+      toast(err.message, true);
+    }
+  });
+
+  $('btn-edit-week-split')?.addEventListener('click', () => {
+    if (currentWeekPlan) {
+      if ($('split-days-select')) $('split-days-select').value = String(currentWeekPlan.days_per_week || 3);
+    }
+    openModal('week-split-modal');
+  });
+
+  $('week-split-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const days_per_week = parseInt($('split-days-select').value, 10);
+    const duration_min = parseInt($('split-duration-select').value, 10);
+    const level = $('split-level-select').value;
+    try {
+      const plan = await postJSON('/api/workouts/week-plan/generate', {
+        days_per_week,
+        duration_min,
+        level,
+      });
+      toast(`Weekly schedule updated to ${days_per_week} days/week!`);
+      closeModal('week-split-modal');
+      renderWeekPlan(plan);
+    } catch (err) {
+      toast(err.message, true);
+    }
+  });
+
+  await loadWeekPlan();
+}
+
+async function loadWeekPlan() {
+  try {
+    const plan = await getJSON('/api/workouts/week-plan');
+    renderWeekPlan(plan);
+
+    // If no day is selected yet, highlight today or the first active day
+    if (selectedDayIdx === null && plan.days) {
+      const todayIdx = plan.days.findIndex((d) => d.is_today);
+      if (todayIdx !== -1) {
+        selectedDayIdx = todayIdx;
+        const card = document.querySelector(`.week-day-card[data-day-idx="${todayIdx}"]`);
+        if (card) {
+          card.classList.add('is-selected');
+          card.scrollIntoView({ inline: 'nearest', behavior: 'smooth' });
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Failed to load week plan:', err);
+    if ($('week-strip')) {
+      $('week-strip').innerHTML = `<div class="muted" style="font-size:12.5px;padding:10px">Could not load schedule: ${esc(err.message)}</div>`;
+    }
+  }
+}
+
+function renderWeekPlan(plan) {
+  currentWeekPlan = plan;
+  const strip = $('week-strip');
+  if (!strip) return;
+
+  // Format date range (e.g. Mon, Sep 7 – Sun, Sep 13)
+  const mon = new Date(plan.week_start + 'T00:00:00');
+  const sun = new Date(plan.week_end + 'T00:00:00');
+  const monFmt = mon.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const sunFmt = sun.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  if ($('week-date-range')) {
+    $('week-date-range').textContent = `Week of ${monFmt} – ${sunFmt}`;
+  }
+
+  if ($('week-split-badge')) {
+    $('week-split-badge').textContent = `${plan.days_per_week || 3} Days / Week`;
+  }
+  if ($('week-progress-badge')) {
+    const comp = plan.completed_days || 0;
+    const total = plan.total_workout_days || plan.days_per_week || 3;
+    $('week-progress-badge').textContent = `${comp} / ${total} completed`;
+  }
+
+  strip.innerHTML = plan.days.map((d, idx) => {
+    const isToday = d.is_today;
+    const isDone = d.completed;
+    const isRest = d.is_rest;
+    const isSelected = selectedDayIdx === idx;
+    const badgeClass = getFocusBadgeClass(d.focus);
+    const icon = getFocusIcon(d.focus);
+
+    let statusHtml = '';
+    if (isDone) {
+      statusHtml = '<span class="day-status completed">✓ Done</span>';
+    } else if (isToday) {
+      statusHtml = '<span class="day-status today">★ Today</span>';
+    } else if (isRest) {
+      statusHtml = '<span class="day-status scheduled">Recovery</span>';
+    } else {
+      statusHtml = '<span class="day-status scheduled">Scheduled</span>';
+    }
+
+    const dayNum = new Date(d.date + 'T00:00:00').getDate();
+
+    return `
+      <div class="week-day-card ${isToday ? 'is-today' : ''} ${isSelected ? 'is-selected' : ''} ${isRest ? 'is-rest' : ''}" data-day-idx="${idx}">
+        <div class="day-header">
+          <div class="day-title">
+            <span>${esc(d.day_short)}</span>
+            <span class="day-date-num">${dayNum}</span>
+          </div>
+          <button type="button" class="day-reroll-btn" data-reroll-idx="${idx}" title="Reroll this day's routine">⟳</button>
+        </div>
+
+        <div>
+          <span class="day-badge ${badgeClass}">${icon} ${esc(d.focus_label || d.focus)}</span>
+        </div>
+
+        <div class="day-focus-title" title="${esc(d.title)}">
+          ${esc(d.title)}
+        </div>
+
+        <div class="day-footer">
+          ${statusHtml}
+          <button type="button" class="day-action-btn load-day-btn" data-load-idx="${idx}">
+            ${isDone ? 'Review' : (isRest ? 'View' : 'Start ▶')}
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Attach card click handlers
+  strip.querySelectorAll('.week-day-card').forEach((card) => {
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.day-reroll-btn')) return;
+      const idx = parseInt(card.dataset.dayIdx, 10);
+      selectWeekDay(idx);
+    });
+  });
+
+  // Attach reroll button handlers
+  strip.querySelectorAll('.day-reroll-btn').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const idx = parseInt(btn.dataset.rerollIdx, 10);
+      btn.textContent = '…';
+      try {
+        const updated = await postJSON('/api/workouts/week-plan/reroll-day', { day_idx: idx });
+        toast(`Rerolled ${updated.days[idx].day_name}'s routine`);
+        renderWeekPlan(updated);
+        if (selectedDayIdx === idx) {
+          selectWeekDay(idx);
+        }
+      } catch (err) {
+        toast(err.message, true);
+        btn.textContent = '⟳';
+      }
+    });
+  });
+}
+
+function selectWeekDay(idx) {
+  if (!currentWeekPlan || !currentWeekPlan.days || !currentWeekPlan.days[idx]) return;
+  selectedDayIdx = idx;
+  const day = currentWeekPlan.days[idx];
+
+  // Update selection UI highlight on cards
+  const strip = $('week-strip');
+  if (strip) {
+    strip.querySelectorAll('.week-day-card').forEach((c, i) => {
+      c.classList.toggle('is-selected', i === idx);
+    });
+  }
+
+  // Load routine into active player
+  if (day.routine) {
+    renderRoutine(day.routine);
+    $('routine-card').classList.remove('hidden');
+    $('routine-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    toast(`Loaded ${day.day_name}: ${day.focus_label}`);
+  }
+}
+

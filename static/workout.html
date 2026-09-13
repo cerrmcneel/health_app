@@ -38,6 +38,34 @@
     </div>
   </section>
 
+  <!-- Weekly Training Plan Card -->
+  <section class="card" id="week-plan-card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <div>
+        <h2 style="margin:0 0 2px">Weekly Training Schedule</h2>
+        <div class="muted" style="font-size:12.5px" id="week-date-range">Loading schedule...</div>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button type="button" class="meal-btn" id="btn-edit-week-split" title="Customize days per week &amp; focus">⚙️ Settings</button>
+        <button type="button" class="meal-btn" id="btn-regen-week" title="Regenerate whole week schedule">↻ Reroll Week</button>
+      </div>
+    </div>
+
+    <!-- Summary Pill Row -->
+    <div class="week-summary-bar" id="week-summary-bar" style="margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <span class="equip-badge" id="week-split-badge">3 Days / Week</span>
+      <span class="equip-badge" id="week-progress-badge">0 / 3 completed</span>
+      <span class="muted" style="font-size:12px;margin-left:auto" id="week-focus-summary">Upper &bull; Lower &bull; Full Body</span>
+    </div>
+
+    <!-- 7-Day Horizontal Scroll Strip -->
+    <div class="week-strip-container" style="margin-top:14px">
+      <div class="week-strip" id="week-strip">
+        <div class="muted" style="font-size:13px;padding:12px">Loading 7-day schedule...</div>
+      </div>
+    </div>
+  </section>
+
   <!-- Workout Generator Controls -->
   <section class="card" id="generator-card">
     <h2>Design Workout</h2>
@@ -178,6 +206,51 @@
         <input type="text" id="custom-gear-notes" placeholder="e.g. 10kg, ceiling mounted, etc.">
       </div>
       <button type="submit" class="btn btn-primary full" style="margin-top:16px" id="btn-save-custom-gear">Add to Inventory</button>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Customize Weekly Schedule Split -->
+<div id="week-split-modal" class="modal-overlay hidden">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3>Weekly Schedule Settings</h3>
+      <button class="modal-close" data-close="week-split-modal">&times;</button>
+    </div>
+    <form id="week-split-form">
+      <div class="field">
+        <label for="split-days-select">Workout Frequency</label>
+        <select id="split-days-select" style="width:100%;padding:9px 12px;border-radius:8px;background:var(--surface-2);color:var(--text);border:1px solid var(--line)">
+          <option value="2">2 Days / Week (Upper &bull; Lower)</option>
+          <option value="3" selected>3 Days / Week (Upper &bull; Lower &bull; Full Body)</option>
+          <option value="4">4 Days / Week (Upper &bull; Lower &bull; Upper &bull; Lower)</option>
+          <option value="5">5 Days / Week (Upper &bull; Lower &bull; Core &bull; Upper &bull; Lower)</option>
+          <option value="6">6 Days / Week (Upper &bull; Lower &bull; Core &bull; Upper &bull; Lower &bull; HIIT)</option>
+        </select>
+        <p class="muted" style="font-size:11.5px;margin:4px 0 0">
+          Sports-science split systematically isolates upper and lower muscle groups to optimize recovery.
+        </p>
+      </div>
+
+      <div class="field" style="margin-top:14px">
+        <label for="split-duration-select">Preferred Duration</label>
+        <select id="split-duration-select" style="width:100%;padding:9px 12px;border-radius:8px;background:var(--surface-2);color:var(--text);border:1px solid var(--line)">
+          <option value="15">15 min (Express)</option>
+          <option value="25" selected>25 min (Standard)</option>
+          <option value="40">40 min (Deep Training)</option>
+        </select>
+      </div>
+
+      <div class="field" style="margin-top:14px">
+        <label for="split-level-select">Intensity Level</label>
+        <select id="split-level-select" style="width:100%;padding:9px 12px;border-radius:8px;background:var(--surface-2);color:var(--text);border:1px solid var(--line)">
+          <option value="beginner">Beginner</option>
+          <option value="intermediate" selected>Intermediate</option>
+          <option value="advanced">Advanced</option>
+        </select>
+      </div>
+
+      <button type="submit" class="btn btn-primary full" style="margin-top:18px" id="btn-save-week-split">Apply &amp; Regenerate Schedule</button>
     </form>
   </div>
 </div>

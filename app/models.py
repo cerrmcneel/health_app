@@ -58,6 +58,10 @@ class Settings(BaseModel):
     fat_target: float = Field(default=70, ge=0, le=2000)
 
 
+class VerifyPinIn(BaseModel):
+    pin: str = Field(min_length=4, max_length=4, pattern=r"^\d{4}$")
+
+
 class ProfileIn(BaseModel):
     name: str = Field(min_length=1, max_length=60)
     calorie_target: float = Field(default=2200, ge=0, le=20000)
@@ -66,6 +70,7 @@ class ProfileIn(BaseModel):
     fat_target: float = Field(default=70, ge=0, le=2000)
     avatar_color: str = Field(default="#3b82f6", max_length=20)
     track_back_photo: int = Field(default=0, ge=0, le=1)
+    pin: str | None = Field(default=None, min_length=4, max_length=4, pattern=r"^\d{4}$")
 
 
 class ProfileUpdate(BaseModel):
@@ -76,6 +81,12 @@ class ProfileUpdate(BaseModel):
     fat_target: float | None = Field(default=None, ge=0, le=2000)
     avatar_color: str | None = Field(default=None, max_length=20)
     track_back_photo: int | None = Field(default=None, ge=0, le=1)
+    workout_days_per_week: int | None = Field(default=None, ge=1, le=7)
+    preferred_duration_min: int | None = Field(default=None, ge=10, le=90)
+    preferred_level: str | None = Field(default=None, max_length=30)
+    pin: str | None = Field(default=None, min_length=4, max_length=4, pattern=r"^\d{4}$")
+    current_pin: str | None = Field(default=None, min_length=4, max_length=4, pattern=r"^\d{4}$")
+    remove_pin: bool | None = Field(default=None)
 
 
 class TargetPreviewIn(BaseModel):
@@ -137,5 +148,18 @@ class WorkoutLogIn(BaseModel):
     routine_json: list | dict | None = None
     day: date | None = None
     notes: str = Field(default="", max_length=500)
+
+
+class WeekPlanGenerateIn(BaseModel):
+    days_per_week: int | None = Field(default=None, ge=1, le=7)
+    duration_min: int | None = Field(default=None, ge=10, le=90)
+    level: str | None = Field(default=None, max_length=30)
+    week_start: str | None = None
+
+
+class WeekPlanRerollDayIn(BaseModel):
+    day_idx: int = Field(ge=0, le=6)
+    focus: str | None = Field(default=None, max_length=30)
+    week_start: str | None = None
 
 

@@ -1424,6 +1424,364 @@ details.compare-customize[open] summary {
   flex-wrap: wrap;
 }
 
+/* --- Weeklong Training Plan Strip & Cards --- */
+.week-strip-container {
+  position: relative;
+  width: 100%;
+  margin-top: 12px;
+}
+
+.week-strip {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(130px, 1fr));
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+
+.week-strip::-webkit-scrollbar {
+  height: 6px;
+}
+.week-strip::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 6px;
+}
+
+.week-day-card {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 145px;
+  scroll-snap-align: start;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  position: relative;
+  user-select: none;
+}
+
+.week-day-card:hover {
+  border-color: var(--muted);
+}
+
+.week-day-card.is-today {
+  border-color: var(--accent);
+  background: rgba(74, 222, 128, 0.05);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.week-day-card.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.week-day-card.is-rest {
+  opacity: 0.82;
+  background: var(--surface);
+}
+
+.week-day-card .day-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.week-day-card .day-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.week-day-card .day-date-num {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.week-day-card .day-badge {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  width: fit-content;
+}
+
+/* Category badge colors */
+.badge-upper {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.badge-lower {
+  background: rgba(249, 115, 22, 0.15);
+  color: #fb923c;
+  border: 1px solid rgba(249, 115, 22, 0.3);
+}
+
+.badge-full {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.3);
+}
+
+.badge-core {
+  background: rgba(20, 184, 166, 0.15);
+  color: #2dd4bf;
+  border: 1px solid rgba(20, 184, 166, 0.3);
+}
+
+.badge-hiit {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.badge-rest {
+  background: rgba(148, 163, 184, 0.12);
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.week-day-card .day-focus-title {
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--text);
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.week-day-card .day-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: 6px;
+}
+
+.week-day-card .day-status {
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.day-status.completed {
+  color: var(--accent);
+}
+
+.day-status.today {
+  color: var(--accent);
+}
+
+.day-status.scheduled {
+  color: var(--muted);
+}
+
+.week-day-card .day-action-btn {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.week-day-card .day-action-btn:hover {
+  background: var(--accent);
+  color: #0f1115;
+  border-color: var(--accent);
+}
+
+.week-day-card .day-reroll-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: color 0.15s ease;
+}
+.week-day-card .day-reroll-btn:hover {
+  color: var(--text);
+}
+
+/* Dashboard Mini 7-Day Tracker */
+.dashboard-week-mini {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  margin: 10px 0 12px;
+}
+
+.mini-day-pill {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 3px;
+  text-align: center;
+  transition: border-color 0.15s ease;
+}
+
+.mini-day-pill.is-today {
+  border-color: var(--accent);
+  background: rgba(74, 222, 128, 0.08);
+}
+
+.mini-day-pill.is-done {
+  border-color: rgba(74, 222, 128, 0.5);
+}
+
+.mini-day-pill .mini-day-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.mini-day-pill.is-today .mini-day-label {
+  color: var(--accent);
+}
+
+.mini-day-pill .mini-day-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin: 4px auto 0;
+  background: var(--muted);
+}
+
+.mini-day-pill.is-done .mini-day-dot {
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+}
+
+.mini-day-pill.is-rest .mini-day-dot {
+  background: transparent;
+  border: 1px solid var(--muted);
+}
+
+/* --- Profile PIN Lock & Security --- */
+.lock-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.pin-dots-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+  margin: 18px 0 12px;
+}
+
+.pin-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  background: var(--surface-2);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pin-dot.filled {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 10px rgba(74, 222, 128, 0.45);
+  transform: scale(1.15);
+}
+
+.pin-error-msg {
+  color: var(--err);
+  font-size: 12.5px;
+  font-weight: 500;
+  margin: 6px 0 12px;
+  min-height: 18px;
+  line-height: 1.3;
+}
+
+.pin-keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  max-width: 240px;
+  margin: 0 auto;
+}
+
+.pin-key {
+  height: 54px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-size: 20px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s ease, transform 0.1s ease, border-color 0.15s ease;
+}
+
+.pin-key:hover {
+  background: var(--surface);
+  border-color: var(--accent);
+}
+
+.pin-key:active {
+  background: var(--accent);
+  color: #0f1115;
+  transform: scale(0.92);
+}
+
+.pin-key.pin-key-fn {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  border-radius: 14px;
+}
+
+.pin-key.pin-key-fn:hover {
+  color: var(--text);
+}
+
+.shake {
+  animation: pin-shake 0.35s ease-in-out;
+}
+
+@keyframes pin-shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-8px); }
+  40%, 80% { transform: translateX(8px); }
+}
+
+
 
 
 

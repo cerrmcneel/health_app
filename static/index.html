@@ -29,6 +29,10 @@
           <span style="font-size:13px">⚙️</span>
           <span style="font-size:12px;font-weight:500">Settings</span>
         </button>
+        <button id="lock-btn" class="profile-pill hidden" title="Lock Profile" aria-label="Lock Profile" style="padding:0 9px;gap:4px;height:32px;display:inline-flex;align-items:center;cursor:pointer">
+          <span style="font-size:12px">🔒</span>
+          <span style="font-size:12px;font-weight:500">Lock</span>
+        </button>
       </div>
       <div class="date" id="day-iso"></div>
     </div>
@@ -106,14 +110,16 @@
 
   <section class="card">
     <div style="display:flex;align-items:center;justify-content:space-between">
-      <h2>Today&rsquo;s Training</h2>
+      <h2>Training Schedule</h2>
       <a href="/workout" class="meal-btn" style="text-decoration:none;margin-top:-6px">Studio &rarr;</a>
     </div>
+    <!-- 7-Day Mini Week Tracker Strip -->
+    <div class="dashboard-week-mini" id="dash-week-mini"></div>
     <div id="today-workout-preview" style="margin-top:4px">
-      <div class="muted" style="font-size:13px" id="today-workout-status">No workout completed yet today.</div>
+      <div class="muted" style="font-size:13px" id="today-workout-status">Loading schedule...</div>
     </div>
     <div class="btn-row" style="margin-top:12px">
-      <a class="btn btn-primary" href="/workout">Start Workout</a>
+      <a class="btn btn-primary" id="btn-dash-workout" href="/workout">Start Workout</a>
     </div>
   </section>
 
@@ -212,11 +218,63 @@
         <label for="new-p-cal">Initial Calorie Target</label>
         <input type="number" id="new-p-cal" value="2200" step="10" min="500">
       </div>
+      <div class="field" style="margin-top:10px">
+        <label for="new-p-pin">4-Digit PIN (Optional)</label>
+        <input type="password" id="new-p-pin" placeholder="e.g. 1234" maxlength="4" pattern="\d{4}" inputmode="numeric">
+        <small class="muted" style="font-size:11px;margin-top:4px;display:block">Locks this profile on shared devices. Leave blank for instant 1-tap switching.</small>
+      </div>
       <button type="submit" class="btn btn-primary full" style="margin-top:12px">Create Profile</button>
     </form>
     <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
       <span style="font-size:12px;color:var(--muted)">Data Portability</span>
       <a href="/api/backup/export" id="download-backup-btn" class="meal-btn" style="text-decoration:none;padding:5px 10px;font-size:12px">💾 Download Data (.zip)</a>
+    </div>
+  </div>
+</div>
+
+<!-- PIN Prompt Modal -->
+<div id="pin-modal" class="modal-overlay hidden">
+  <div class="modal-card pin-card" style="max-width:320px;text-align:center">
+    <div style="display:flex;justify-content:flex-end">
+      <button class="modal-close" data-close="pin-modal">&times;</button>
+    </div>
+    <div style="margin:-6px 0 16px;display:flex;flex-direction:column;align-items:center">
+      <span class="avatar-circle lg" id="pin-profile-avatar" style="margin-bottom:8px;font-size:18px">D</span>
+      <h3 style="margin:0;font-size:17px" id="pin-profile-name">Profile Locked</h3>
+      <p class="muted" style="margin:4px 0 0;font-size:12px">Enter 4-digit PIN to access private logs</p>
+    </div>
+
+    <!-- Hidden native input to support mobile keyboards & accessibility -->
+    <input type="password" id="pin-input" maxlength="4" pattern="\d{4}" inputmode="numeric" autocomplete="off" style="position:absolute;opacity:0;pointer-events:none;left:-9999px">
+
+    <!-- Visual PIN Dots -->
+    <div class="pin-dots-row" id="pin-dots">
+      <span class="pin-dot"></span>
+      <span class="pin-dot"></span>
+      <span class="pin-dot"></span>
+      <span class="pin-dot"></span>
+    </div>
+
+    <div id="pin-error" class="pin-error-msg hidden"></div>
+
+    <!-- On-screen Touch Keypad -->
+    <div class="pin-keypad" id="pin-keypad">
+      <button type="button" class="pin-key" data-key="1">1</button>
+      <button type="button" class="pin-key" data-key="2">2</button>
+      <button type="button" class="pin-key" data-key="3">3</button>
+      <button type="button" class="pin-key" data-key="4">4</button>
+      <button type="button" class="pin-key" data-key="5">5</button>
+      <button type="button" class="pin-key" data-key="6">6</button>
+      <button type="button" class="pin-key" data-key="7">7</button>
+      <button type="button" class="pin-key" data-key="8">8</button>
+      <button type="button" class="pin-key" data-key="9">9</button>
+      <button type="button" class="pin-key pin-key-fn" data-key="clear">Clear</button>
+      <button type="button" class="pin-key" data-key="0">0</button>
+      <button type="button" class="pin-key pin-key-fn" data-key="back">⌫</button>
+    </div>
+
+    <div style="margin-top:14px">
+      <button type="button" class="btn full" data-close="pin-modal">Cancel</button>
     </div>
   </div>
 </div>
@@ -486,6 +544,33 @@
           </div>
           <input type="checkbox" id="edit-p-track-back" style="width:18px;height:18px;margin-top:2px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">
         </label>
+      </div>
+
+      <!-- PIN Security & Privacy -->
+      <div class="field" style="margin-top:14px;padding:12px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <span style="font-weight:600;font-size:13.5px;color:var(--text)">🔒 Profile PIN Protection</span>
+          <span id="edit-p-pin-status" class="badge" style="font-size:11px;padding:2px 8px;border-radius:12px;background:var(--surface);border:1px solid var(--line);color:var(--muted)">Unlocked</span>
+        </div>
+        <p class="muted" style="font-size:11.5px;margin:0 0 10px;line-height:1.4">
+          Locks access to this profile's photos, body weight, and logs on shared home network devices.
+        </p>
+
+        <div id="edit-p-current-pin-group" class="field hidden" style="margin-bottom:10px">
+          <label for="edit-p-current-pin" style="font-size:12px">Current 4-Digit PIN</label>
+          <input type="password" id="edit-p-current-pin" maxlength="4" pattern="\d{4}" inputmode="numeric" placeholder="Enter current PIN">
+        </div>
+
+        <div id="edit-p-new-pin-group" class="field" style="margin-bottom:10px">
+          <label for="edit-p-new-pin" id="edit-p-new-pin-label" style="font-size:12px">Set New 4-Digit PIN</label>
+          <input type="password" id="edit-p-new-pin" maxlength="4" pattern="\d{4}" inputmode="numeric" placeholder="Leave blank to keep unchanged">
+        </div>
+
+        <div id="edit-p-remove-pin-group" class="hidden" style="margin-top:8px">
+          <button type="button" id="btn-remove-pin" class="meal-btn" style="color:var(--err);border-color:var(--err);font-size:12px;padding:4px 10px">
+            🔓 Remove PIN Protection
+          </button>
+        </div>
       </div>
 
       <button type="submit" class="btn btn-primary full" style="margin-top:14px">Save Settings</button>
